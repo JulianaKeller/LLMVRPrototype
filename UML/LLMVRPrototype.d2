@@ -1,0 +1,363 @@
+direction: right
+
+title: "LLM VR Prototype "
+
+# ============================================================
+# 2. CORE APPLICATION SERVICES
+# ============================================================
+
+Core: "Core Communication Layer" {
+  direction: down
+  layout: elk  # Forces D2 to use its advanced line-untangling engine
+  theme: 100
+
+  LLMService: {
+    shape: class
+    label: "LLMService\n---\nPurpose:\nMain provider-independent entry point for LLM requests.\n\nFields:\n- provider: ILLMProvider\n- config: LLMConfiguration\n\nMethods:\n+ SendAsync(request): Task<LLMResponse>\n+ CancelRequest()\n+ GetProviderInfo()\n\nDoes not construct provider-specific HTTP requests.\nCoordinates the request and returns a normalized response."
+  }
+
+  LLMProviderFactory: {
+    shape: class
+    label: "LLMProviderFactory\n---\nPurpose:\nCreate the correct provider adapter from configuration.\n\nMethods:\n+ CreateProvider(config): ILLMProvider\n\nSelects Ollama, an OpenAI-compatible endpoint, or a dedicated adapter.\nPrevents provider construction logic from spreading through the app."
+  }
+
+  PromptBuilder: {
+    shape: class
+    label: "PromptBuilder [Future]\n---\nPurpose:\nAssemble instructions and contextual information before sending.\n\nMethods:\n+ BuildMessages(request, history)\n+ AddSystemInstructions()\n+ AddContext(context)\n\nKeeps prompt construction separate from HTTP communication.\nCan later add scene state and available-action descriptions."
+  }
+
+  ConversationManager: {
+    shape: class
+    label: "ConversationManager\n---\nPurpose:\nMaintain explicit conversation history in Unity.\n\nFields:\n- messages: List<ChatMessage>\n- maxHistoryMessages: int\n\nMethods:\n+ AddUserMessage(text)\n+ AddAssistantMessage(text)\n+ GetRelevantHistory()\n+ ClearHistory()\n\nThe application sends required history with each request;\nprovider-side memory is not assumed."
+  }
+
+  ContextProvider: {
+    shape: class
+    label: "ContextProvider [Future]\n---\nPurpose:\nSupply application context relevant to a prompt.\n\nMethods:\n+ GetCurrentSceneContext()\n+ GetAvailableActions()\n+ GetSelectedObjectContext()\n\nCan expose scene summaries, selected object IDs,\nand supported operations without coupling the LLM to Unity internals."
+  }
+
+  RequestCoordinator: {
+    shape: class
+    label: "RequestCoordinator [Future]\n---\nPurpose:\nCoordinate multi-step application workflows.\n\nMethods:\n+ SubmitPrompt(text)\n+ PrepareRequest()\n+ ProcessResponse(response)\n+ CancelWorkflow()\n\nCan coordinate prompt interpretation, structured output validation,\nand later scene-edit execution."
+  }
+}
+
+# ============================================================
+# 3. SHARED DATA MODELS
+# ============================================================
+
+Models: "Shared Data Models" {
+  direction: down
+
+  LLMRequest: {
+    shape: class
+    label: "LLMRequest\n---\nPurpose:\nProvider-independent representation of a request.\n\nFields:\n- systemPrompt: string\n- userPrompt: string\n- conversationHistory: List<ChatMessage>\n- temperature: float\n- maxOutputTokens: int\n- responseFormat: ResponseFormat?\n\nContains intent and generation settings, not HTTP details."
+  }
+
+  LLMResponse: {
+    shape: class
+    label: "LLMResponse\n---\nPurpose:\nProvider-independent result returned to the caller.\n\nFields:\n- success: bool\n- text: string\n- errorMessage: string\n- statusCode: int\n- rawResponse: string\n- finishReason: string\n- usage: TokenUsage\n\nNormalizes successful responses and errors across providers."
+  }
+
+  ChatMessage: {
+    shape: class
+    label: "ChatMessage\n---\nPurpose:\nRepresent one conversation turn.\n\nFields:\n- role: MessageRole\n- content: string\n\nRoles may include system, user, assistant, and tool.\nProvider adapters map roles to their own schemas."
+  }
+
+  TokenUsage: {
+    shape: class
+    label: "TokenUsage\n---\nPurpose:\nStore usage metadata when provided by an API.\n\nFields:\n- inputTokens: int?\n- outputTokens: int?\n- totalTokens: int?\n\nUseful for usage monitoring, cost estimation, and research logging."
+  }
+
+  ResponseFormat: {
+    shape: class
+    label: "ResponseFormat\n---\nPurpose:\nDescribe the expected response format.\n\nFields:\n- formatType: string\n- schemaJson: string\n\nFuture use:\nRequest structured JSON for scene-edit commands.\nNot every provider supports every format."
+  }
+
+  LLMError: {
+    shape: class
+    label: "LLMError [Future]\n---\nPurpose:\nRepresent errors in a structured, machine-readable form.\n\nFields:\n- category: ErrorCategory\n- message: string\n- isRetryable: bool\n- providerCode: string\n\nSeparates authentication, configuration, network,\nrate-limit, server, and response-format failures."
+  }
+}
+
+# ============================================================
+# 4. PROVIDER ABSTRACTION AND IMPLEMENTATIONS
+# ============================================================
+
+Providers: "Provider Adapter Layer" {
+  direction: down
+
+  ILLMProvider: {
+    shape: class
+    label: "ILLMProvider <<interface>>\n---\nPurpose:\nDefine the common contract for all providers.\n\nMethods:\n+ SendAsync(request): Task<LLMResponse>\n+ GetProviderName(): string\n\nThe application depends on this interface,\nnot on a vendor-specific implementation."
+  }
+
+  OpenAICompatibleProvider: {
+    shape: class
+    label: "OpenAICompatibleProvider\n---\nPurpose:\nCommunicate with APIs using a compatible chat-completions schema.\n\nMethods:\n+ SendAsync(request)\n+ BuildPayload(request)\n+ ParseResponse(body)\n\nCandidate for Ollama and compatible cloud endpoints.\nCompatibility must be verified for each endpoint."
+  }
+
+  OllamaProvider: {
+    shape: class
+    label: "OllamaProvider [Optional Specialization]\n---\nPurpose:\nConfigure communication with a local Ollama server.\n\nMethods:\n+ SendAsync(request)\n\nCan reuse shared OpenAI-compatible behavior when the\nselected Ollama endpoint and features are compatible."
+  }
+
+  AcademicCloudProvider: {
+    shape: class
+    label: "AcademicCloudProvider [Future]\n---\nPurpose:\nIntegrate the academic cloud service once API access is available.\n\nMethods:\n+ SendAsync(request)\n+ BuildPayload(request)\n+ ParseResponse(body)\n\nImplement as a dedicated adapter if its authentication,\nrequest schema, or response format differs."
+  }
+
+  GeminiProvider: {
+    shape: class
+    label: "GeminiProvider [Optional]\n---\nPurpose:\nIntegrate Google's Gemini API when desired.\n\nMethods:\n+ SendAsync(request)\n+ BuildPayload(request)\n+ ParseResponse(body)\n\nUse a dedicated adapter if its schema differs from the\nshared OpenAI-compatible contract."
+  }
+
+  OtherProvider: {
+    shape: class
+    label: "OtherProvider [Future]\n---\nPurpose:\nAdd another cloud or local model.\n\nMethods:\n+ SendAsync(request)\n\nNew providers should implement ILLMProvider without\nrequiring changes to LLMService or the UI."
+  }
+}
+
+# ============================================================
+# 5. CONFIGURATION AND CREDENTIALS
+# ============================================================
+
+Configuration: "Configuration and Secrets" {
+  direction: down
+
+  LLMConfiguration: {
+    shape: class
+    label: "LLMConfiguration\n---\nPurpose:\nStore non-secret settings for a provider.\n\nFields:\n- providerType: ProviderType\n- endpointUrl: string\n- modelId: string\n- timeoutSeconds: int\n- temperature: float\n- maxOutputTokens: int\n- useStreaming: bool\n\nCan be represented by a Unity ScriptableObject.\nAvoid committing API keys with project assets."
+  }
+
+  CredentialProvider: {
+    shape: class
+    label: "CredentialProvider\n---\nPurpose:\nResolve authentication credentials at runtime.\n\nMethods:\n+ GetCredential(providerType): CredentialResult\n\nDevelopment options:\nEnvironment variable or local ignored secrets file.\n\nProduction:\nPrefer a backend that holds cloud API keys;\nnever rely on a key embedded in the Quest build being secret."
+  }
+
+  ProviderType: {
+    shape: class
+    label: "ProviderType <<enum>>\n---\nValues:\n- Ollama\n- OpenAICompatible\n- AcademicCloud\n- Gemini\n- Custom\n\nUsed by the factory to select an adapter."
+  }
+
+  CredentialResult: {
+    shape: class
+    label: "CredentialResult\n---\nPurpose:\nReturn credential data or a clear resolution error.\n\nFields:\n- success: bool\n- token: string\n- errorMessage: string\n\nSensitive values should not be written to logs."
+  }
+}
+
+# ============================================================
+# 6. HTTP TRANSPORT
+# ============================================================
+
+Transport: "HTTP Transport Layer" {
+  direction: down
+
+  IHttpTransport: {
+    shape: class
+    label: "IHttpTransport <<interface>> [Optional]\n---\nPurpose:\nAbstract the low-level HTTP request mechanism.\n\nMethods:\n+ PostAsync(url, headers, body, timeout)\n  : Task<HttpResult>\n\nUseful if multiple adapters share transport behavior,\nor if tests need a mock HTTP implementation."
+  }
+
+  UnityWebRequestTransport: {
+    shape: class
+    label: "UnityWebRequestTransport\n---\nPurpose:\nSend HTTP requests using Unity's built-in networking API.\n\nMethods:\n+ PostAsync(url, headers, body, timeout)\n+ ApplyHeaders()\n+ HandleCancellation()\n\nWorks in Unity projects without requiring a provider SDK.\nMust avoid blocking the Unity main thread."
+  }
+
+  HttpResult: {
+    shape: class
+    label: "HttpResult\n---\nPurpose:\nRepresent the low-level HTTP outcome.\n\nFields:\n- success: bool\n- statusCode: int\n- body: string\n- error: string\n- headers: Dictionary<string, string>\n\nContains transport results before provider-specific parsing."
+  }
+
+  RetryPolicy: {
+    shape: class
+    label: "RetryPolicy [Future]\n---\nPurpose:\nDecide whether and when a failed request should be retried.\n\nMethods:\n+ ShouldRetry(result, attempt): bool\n+ GetDelay(attempt): TimeSpan\n\nUse bounded retries and backoff for transient errors.\nAvoid repeatedly retrying invalid credentials or bad requests."
+  }
+
+  RequestCancellation: {
+    shape: class
+    label: "RequestCancellation [Future]\n---\nPurpose:\nTrack cancellation of in-flight requests.\n\nFields:\n- cancellationToken: CancellationToken\n\nMethods:\n+ Cancel()\n\nUseful when a user submits a new prompt, leaves a workflow,\nor cancels a long-running request."
+  }
+}
+
+# ============================================================
+# 7. RESPONSE PROCESSING, VALIDATION, AND OBSERVABILITY
+# ============================================================
+
+Processing: "Response Processing and Reliability" {
+  direction: down
+
+  ResponseParser: {
+    shape: class
+    label: "ResponseParser\n---\nPurpose:\nParse a provider's response schema.\n\nMethods:\n+ ParseProviderResponse(body): LLMResponse\n\nNormally implemented inside each provider adapter,\nor split into dedicated parsers when useful."
+  }
+
+  ResponseValidator: {
+    shape: class
+    label: "ResponseValidator [Future]\n---\nPurpose:\nCheck the returned content before the application uses it.\n\nMethods:\n+ Validate(response)\n+ ValidateJson(text, schema)\n+ GetValidationErrors()\n\nEspecially important when the model must return structured\nscene-edit instructions rather than free-form text."
+  }
+
+  ErrorHandler: {
+    shape: class
+    label: "ErrorHandler\n---\nPurpose:\nTranslate failures into actionable application errors.\n\nMethods:\n+ ClassifyError(statusCode, body, exception)\n+ CreateUserMessage(error)\n\nHandles timeouts, network errors, authentication failures,\nrate limits, server errors, and malformed responses."
+  }
+
+  LLMLogger: {
+    shape: class
+    label: "LLMLogger [Future]\n---\nPurpose:\nRecord operational metadata for debugging and research.\n\nMethods:\n+ LogRequestMetadata(requestId, provider, model)\n+ LogResultMetadata(duration, status, usage)\n+ LogError(error)\n\nSupport opt-in prompt logging, redaction, and privacy controls.\nAvoid recording API keys or unnecessary sensitive content."
+  }
+
+  RequestMetrics: {
+    shape: class
+    label: "RequestMetrics [Future]\n---\nPurpose:\nCollect performance and reliability statistics.\n\nFields:\n- durationMs: long\n- successCount: int\n- failureCount: int\n- retryCount: int\n- tokenUsage: TokenUsage\n\nCan support thesis evaluation of latency, reliability,\nand perceived responsiveness."
+  }
+}
+
+# ============================================================
+# 8. FUTURE VR SCENE-AUTHORING CONSUMER
+# ============================================================
+
+SceneAuthoring: "Future Scene-Authoring Integration" {
+  direction: down
+
+  SceneCommandInterpreter: {
+    shape: class
+    label: "SceneCommandInterpreter [Future]\n---\nPurpose:\nConvert validated model output into typed application commands.\n\nMethods:\n+ ParseCommands(response)\n+ ValidateCommands(commands)\n\nExamples:\nAddObject, MoveObject, ChangeMaterial, AdjustLighting.\nDo not execute arbitrary model-generated C# code."
+  }
+
+  SceneCommand: {
+    shape: class
+    label: "SceneCommand [Future]\n---\nPurpose:\nRepresent a single validated scene modification.\n\nFields:\n- commandType: string\n- targetId: string\n- parameters: Dictionary<string, object>\n\nUse typed command subclasses or strict schemas in production.\nCommands should target explicit scene or object identifiers."
+  }
+
+  SceneCommandExecutor: {
+    shape: class
+    label: "SceneCommandExecutor [Future]\n---\nPurpose:\nApply validated commands to the Unity scene.\n\nMethods:\n+ Execute(commands)\n+ ValidateSceneConstraints()\n+ RollbackIfNeeded()\n\nRuns deterministic Unity-side operations rather than asking\nthe model to manipulate the scene directly."
+  }
+
+  ChangeHistory: {
+    shape: class
+    label: "ChangeHistory [Future]\n---\nPurpose:\nRecord scene edits and support undo/redo.\n\nFields:\n- entries: List<ChangeRecord>\n\nMethods:\n+ RecordChange(record)\n+ Undo()\n+ Redo()\n\nStore the prompt, affected elements, and before/after states."
+  }
+
+  ChangeRecord: {
+    shape: class
+    label: "ChangeRecord [Future]\n---\nPurpose:\nRepresent one applied or reverted scene change.\n\nFields:\n- prompt: string\n- commandType: string\n- affectedIds: List<string>\n- beforeState: string\n- afterState: string\n- timestamp: DateTime\n\nUseful for undo/redo, debugging, and research analysis."
+  }
+}
+
+# ============================================================
+# 9. CORE REQUEST FLOW
+# ============================================================
+
+UI.LLMTestUI -> Core.LLMService: "1. Submit prompt"
+UI.VRChatUI -> Core.RequestCoordinator: "Future: submit VR prompt"
+UI.VoiceInputController -> UI.VRChatUI: "Transcribed text"
+
+Core.RequestCoordinator -> Core.PromptBuilder: "Prepare messages"
+Core.RequestCoordinator -> Core.ContextProvider: "Request relevant context"
+Core.RequestCoordinator -> Core.LLMService: "Send prepared request"
+
+Core.LLMService -> Models.LLMRequest: "Consumes"
+Core.LLMService -> Configuration.LLMConfiguration: "Reads settings"
+Core.LLMService -> Core.LLMProviderFactory: "Create provider if needed"
+Core.LLMProviderFactory -> Configuration.LLMConfiguration: "Read provider type"
+
+Core.LLMProviderFactory -> Providers.ILLMProvider: "Returns implementation"
+
+Core.LLMService -> Core.ConversationManager: "Get and update history"
+Core.ConversationManager -> Models.ChatMessage: "Stores"
+
+Core.PromptBuilder -> Models.ChatMessage: "Builds message sequence"
+Core.PromptBuilder -> Core.ContextProvider: "Adds application context"
+
+# ============================================================
+# 10. PROVIDER IMPLEMENTATION RELATIONSHIPS
+# ============================================================
+
+Providers.OpenAICompatibleProvider -> Providers.ILLMProvider: "Implements"
+Providers.OllamaProvider -> Providers.ILLMProvider: "Implements"
+Providers.AcademicCloudProvider -> Providers.ILLMProvider: "Implements"
+Providers.GeminiProvider -> Providers.ILLMProvider: "Implements"
+Providers.OtherProvider -> Providers.ILLMProvider: "Implements"
+
+Core.LLMService -> Providers.ILLMProvider: "Calls SendAsync()"
+
+Providers.OpenAICompatibleProvider -> Configuration.LLMConfiguration: "Uses endpoint/model settings"
+Providers.OllamaProvider -> Configuration.LLMConfiguration: "Uses endpoint/model settings"
+Providers.AcademicCloudProvider -> Configuration.LLMConfiguration: "Uses endpoint/model settings"
+Providers.GeminiProvider -> Configuration.LLMConfiguration: "Uses endpoint/model settings"
+
+Providers.OpenAICompatibleProvider -> Configuration.CredentialProvider: "Gets credentials if required"
+Providers.AcademicCloudProvider -> Configuration.CredentialProvider: "Gets credentials"
+Providers.GeminiProvider -> Configuration.CredentialProvider: "Gets credentials"
+
+# ============================================================
+# 11. HTTP AND RESPONSE FLOW
+# ============================================================
+
+Providers.OpenAICompatibleProvider -> Transport.IHttpTransport: "Sends HTTP request"
+Providers.OllamaProvider -> Transport.IHttpTransport: "Sends HTTP request"
+Providers.AcademicCloudProvider -> Transport.IHttpTransport: "Sends HTTP request"
+Providers.GeminiProvider -> Transport.IHttpTransport: "Sends HTTP request"
+
+Transport.UnityWebRequestTransport -> Transport.IHttpTransport: "Implements"
+Transport.UnityWebRequestTransport -> Transport.HttpResult: "Returns"
+
+Transport.IHttpTransport -> Transport.HttpResult: "Returns transport result"
+Transport.RetryPolicy -> Transport.HttpResult: "Evaluates failures"
+Transport.RequestCancellation -> Transport.UnityWebRequestTransport: "Cancels when supported"
+
+Providers.OpenAICompatibleProvider -> Processing.ResponseParser: "Parses response"
+Providers.AcademicCloudProvider -> Processing.ResponseParser: "Parses response"
+Providers.GeminiProvider -> Processing.ResponseParser: "Parses response"
+
+Processing.ResponseParser -> Models.LLMResponse: "Creates normalized response"
+Providers.ILLMProvider -> Models.LLMResponse: "Returns normalized result"
+
+Core.LLMService -> Processing.ErrorHandler: "Classifies failures"
+Core.LLMService -> Processing.LLMLogger: "Records metadata"
+Processing.LLMLogger -> Processing.RequestMetrics: "Updates metrics"
+
+Core.LLMService -> Models.LLMResponse: "Returns result"
+UI.LLMTestUI -> Models.LLMResponse: "Displays text or error"
+UI.VRChatUI -> Models.LLMResponse: "Displays assistant result"
+
+# ============================================================
+# 12. FUTURE STRUCTURED SCENE-AUTHORING FLOW
+# ============================================================
+
+Models.LLMRequest -> Models.ResponseFormat: "Optional output constraints"
+Models.LLMResponse -> Processing.ResponseValidator: "Validate content"
+
+Processing.ResponseValidator -> SceneAuthoring.SceneCommandInterpreter: "Validated structured output"
+SceneAuthoring.SceneCommandInterpreter -> SceneAuthoring.SceneCommand: "Creates commands"
+SceneAuthoring.SceneCommandExecutor -> SceneAuthoring.SceneCommand: "Executes validated commands"
+SceneAuthoring.SceneCommandExecutor -> SceneAuthoring.ChangeHistory: "Records changes"
+SceneAuthoring.ChangeHistory -> SceneAuthoring.ChangeRecord: "Stores entries"
+
+SceneAuthoring.SceneCommandInterpreter -> Core.LLMService: "Consumes LLM result indirectly"
+SceneAuthoring.SceneCommandExecutor -> Core.ContextProvider: "Scene state can inform future prompts"
+
+# ============================================================
+# 13. SHARED TYPES AND CONFIGURATION
+# ============================================================
+
+Models.LLMResponse -> Models.TokenUsage: "Optional usage data"
+Models.LLMResponse -> Models.LLMError: "Future structured error"
+Configuration.LLMConfiguration -> Configuration.ProviderType: "Selects provider"
+Configuration.CredentialProvider -> Configuration.CredentialResult: "Returns credential result"
+
+# ============================================================
+# 14. VISUAL GROUPING AND LEGEND
+# ============================================================
+
+Legend: {
+  direction: down
+  current: "Core initial implementation\nLLMService, ILLMProvider, configuration,\nprovider adapter, HTTP transport, request/response models,\nand a basic test UI."
+  optional: "Optional abstraction\nUseful when multiple providers or test doubles are needed."
+  future: "Future expansion\nConversation context, validation, telemetry,\nVR interaction, structured scene commands, undo/redo."
+}
+
+Legend.current.style.fill: "#D5E8D4"
+Legend.optional.style.fill: "#FFF2CC"
+Legend.future.style.fill: "#DAE8FC"
