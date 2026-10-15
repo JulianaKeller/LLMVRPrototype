@@ -39,5 +39,10 @@ namespace LLMVRPrototype
         {
             return string.Join("\n", errors);
         }
+
+        public string GetSummary()
+        {
+            return IsValid ? "Validation successful." : GetErrorSummary();
+        }
     }
 }
