@@ -22,28 +22,6 @@ namespace LLMVRPrototype
             RequestId = System.Guid.NewGuid().ToString();
         }
 
-        public ValidationResult Validate()
-        {
-            if (string.IsNullOrWhiteSpace(UserPrompt)) 
-                return ValidationResult.Failure("The user prompt cannot be empty."); 
-            if (Temperature < 0f || Temperature > 2f) 
-                return ValidationResult.Failure("Temperature must be between 0 and 2."); 
-            if (MaxOutputTokens <= 0) 
-                return ValidationResult.Failure("MaxOutputTokens must be greater than zero."); 
-            if (ConversationHistory == null) 
-                return ValidationResult.Failure("ConversationHistory cannot be null."); 
-            if (string.IsNullOrWhiteSpace(RequestId)) 
-                return ValidationResult.Failure("RequestId cannot be empty."); 
-            foreach (ChatMessage message in ConversationHistory) { 
-                if (message == null) 
-                    return ValidationResult.Failure("Conversation history contains a null message."); 
-                ValidationResult messageValidation = message.Validate(); 
-                if (!messageValidation.IsValid) 
-                    return messageValidation; 
-            }
-            return ValidationResult.Success();
-        }
-
         // combines the system prompt, conversation history, and current user prompt into a single ordered list
         // most chat APIs do not automatically remember previous requests
         public List<ChatMessage> GetMessages() { 

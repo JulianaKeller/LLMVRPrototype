@@ -12,6 +12,8 @@ namespace LLMVRPrototype
         public string RequestId { get; private set; }
         public long ElapsedMilliseconds { get; private set; }
 
+        // TODO extend LLMResponse with structured failure information so LLMService can decide whether a retry is appropriate.
+
         // Private constructor so that no LLMResponses with contradictory information (success with error) can be created
         private LLMResponse(bool success, string text, string errorMessage, long statusCode, string requestId, long elapsedMilliseconds)
         {

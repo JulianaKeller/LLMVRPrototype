@@ -11,6 +11,7 @@ namespace LLMVRPrototype
         private AcademicCloudConfig academicCloudConfig;
 
         private LLMOrchestrator llmOrchestrator;
+        private ConversationManager conversationManager;
 
         void Start()
         {
@@ -23,7 +24,8 @@ namespace LLMVRPrototype
             }
 
             var provider = new AcademicCloudProvider(academicCloudConfig, apiKey);
-            llmOrchestrator = new LLMOrchestrator(provider);
+            conversationManager = new ConversationManager();
+            llmOrchestrator = new LLMOrchestrator(provider, conversationManager);
 
             _ = TestConnectionAsync();
         }

@@ -22,6 +22,17 @@ namespace LLMVRPrototype
             IsValid = false;
         }
 
+        public void AddErrors(IEnumerable<string> newErrors)
+        {
+            if (newErrors == null)
+                return;
+
+            foreach (string error in newErrors)
+            {
+                AddError(error);
+            }
+        }
+
         public static ValidationResult Success()
         {
             return new ValidationResult();

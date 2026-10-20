@@ -13,11 +13,15 @@ namespace LLMVRPrototype
     {
         private readonly AcademicCloudConfig config;
         private readonly string apiKey;
+        private readonly ILLMTransport transport;
 
-        public AcademicCloudProvider(AcademicCloudConfig config, string apiKey)
+        public AcademicCloudProvider(AcademicCloudConfig config, string apiKey, ILLMTransport transport = null)
         {
             this.config = config;
             this.apiKey = apiKey;
+
+            this.transport = transport ?? new UnityWebRequestTransport();
+            // default transport makes nomal usage in Unity simple, optionally a fake transport can be provided for unit testing
         }
 
         public string GetProviderName()
@@ -57,11 +61,14 @@ namespace LLMVRPrototype
         {
             var stopwatch = Stopwatch.StartNew();
 
+            string requestId = request?.RequestId ?? string.Empty;
+
             if (request == null)
             {
                 return LLMResponse.Failed("LLM request is null.", string.Empty, 0, 0);
             }
 
+            /* Validation not necessary as this is done in Orchestrator before calling SendAsync
             ValidationResult requestValidation = request.Validate();
 
             if (!requestValidation.IsValid)
@@ -71,7 +78,7 @@ namespace LLMVRPrototype
                     request.RequestId,
                     0,
                     stopwatch.ElapsedMilliseconds);
-            }
+            }*/
 
             ValidationResult configValidation = ValidateConfiguration();
 
@@ -84,123 +91,156 @@ namespace LLMVRPrototype
                     stopwatch.ElapsedMilliseconds);
             }
 
-            string requestId = request.RequestId;
-
             try
             {
+                // 1. Convert the application request into the Academic Cloud-specific request DTO
+
                 AcademicCloudChatRequest payload = BuildPayload(request); // payload = the actual data sent between client and server
 
                 string json = JsonUtility.ToJson(payload);
-                byte[] body = System.Text.Encoding.UTF8.GetBytes(json);
+
+                // 2. Build a provider-independent HTTP request
 
                 string endpoint = config.BaseUrl.TrimEnd('/') + "/chat/completions";
 
-                using (var webRequest = new UnityWebRequest(endpoint, UnityWebRequest.kHttpVerbPOST)) // using block disposes of the request after its response has been processed
+                var headers = new Dictionary<string, string>
                 {
-                    webRequest.uploadHandler = new UploadHandlerRaw(body); // tells the request what data to send out
-                    webRequest.downloadHandler = new DownloadHandlerBuffer(); // allocates a block of memory (a buffer) to catch and store the incoming data that the server will eventually send back
-                    webRequest.timeout = config.TimeoutSeconds;
-
-                    webRequest.SetRequestHeader( 
+                    {
                         "Authorization",
-                        "Bearer " + this.apiKey); // HTTP headers are metadata sent alongside the request to give the server context
-
-                    webRequest.SetRequestHeader(
+                        "Bearer " + apiKey
+                    },
+                    {
                         "Content-Type",
-                        "application/json");
-
-                    webRequest.SetRequestHeader(
+                        "application/json"
+                    },
+                    {
                         "Accept",
-                        "application/json");
-
-                    UnityWebRequestAsyncOperation operation = webRequest.SendWebRequest();
-
-                    var completion = new TaskCompletionSource<bool>();
-
-                    operation.completed += _ => completion.TrySetResult(true); // event subscription, adding anonymous (no function name, discard arguments) lambda function (_ =>)
-
-                    // Wait until Unity's asynchronous HTTP operation finishes
-                    await completion.Task;
-
-                    stopwatch.Stop();
-
-                    string responseBody = webRequest.downloadHandler?.text ?? string.Empty;
-
-                    if (webRequest.result != UnityWebRequest.Result.Success)
-                    {
-                        string errorMessage = ExtractErrorMessage(responseBody, webRequest.error);
-
-                        UnityEngine.Debug.LogWarning(
-                            $"Academic Cloud request failed. " +
-                            $"HTTP status: {webRequest.responseCode}. " +
-                            $"Error: {errorMessage}");
-
-                        return LLMResponse.Failed(
-                            errorMessage,
-                            requestId,
-                            (int)webRequest.responseCode,
-                            stopwatch.ElapsedMilliseconds);
+                        "application/json"
                     }
+                };
 
-                    AcademicCloudChatResponse parsedResponse;
+                var httpRequest = new HttpRequestData(
+                    url: endpoint,
+                    method: "POST",
+                    body: json,
+                    headers: headers,
+                    timeoutSeconds: config.TimeoutSeconds);
 
-                    try
-                    {
-                        parsedResponse = JsonUtility.FromJson<AcademicCloudChatResponse>(responseBody);
-                    }
-                    catch (Exception exception)
-                    {
-                        return LLMResponse.Failed(
-                            "Could not parse Academic Cloud response: " +
-                            exception.Message,
-                            requestId,
-                            (int)webRequest.responseCode,
-                            stopwatch.ElapsedMilliseconds);
-                    }
+                // 3. Execute the HTTP request through the transport
 
-                    if (parsedResponse == null)
-                    {
-                        return LLMResponse.Failed(
-                            "Academic Cloud returned an empty or invalid response.",
-                            requestId,
-                            (int)webRequest.responseCode,
-                            stopwatch.ElapsedMilliseconds);
-                    }
+                HttpResponseData httpResponse = await transport.SendAsync(httpRequest);
 
-                    if (parsedResponse.choices == null ||
-                        parsedResponse.choices.Count == 0 ||
-                        parsedResponse.choices[0].message == null)
-                    {
-                        return LLMResponse.Failed(
-                            "Academic Cloud response contained no message.",
-                            requestId,
-                            (int)webRequest.responseCode,
-                            stopwatch.ElapsedMilliseconds);
-                    }
+                stopwatch.Stop();
 
-                    string generatedText = parsedResponse.choices[0].message.content;
+                // 4. Handle transport failures
 
-                    if (string.IsNullOrWhiteSpace(generatedText))
-                    {
-                        return LLMResponse.Failed(
-                            "Academic Cloud returned an empty message.",
-                            requestId,
-                            (int)webRequest.responseCode,
-                            stopwatch.ElapsedMilliseconds);
-                    }
-
-                    return LLMResponse.Successful(
-                        generatedText,
+                if (httpResponse == null)
+                {
+                    return LLMResponse.Failed(
+                        "HTTP transport returned no response.",
                         requestId,
-                        (int)webRequest.responseCode,
+                        0,
                         stopwatch.ElapsedMilliseconds);
                 }
+
+                if (!httpResponse.TransportSucceeded)
+                {
+                    string errorMessage = !string.IsNullOrWhiteSpace(httpResponse.Error)
+                            ? httpResponse.Error
+                            : "The HTTP request failed.";
+
+                    LLMLogger.LogWarning($"Request {requestId} failed at the transport layer.");
+
+                    return LLMResponse.Failed(
+                        errorMessage,
+                        requestId,
+                        (int)httpResponse.StatusCode,
+                        stopwatch.ElapsedMilliseconds);
+                }
+
+                // 5. Handle unsuccessful HTTP status codes
+
+                if (!httpResponse.IsHttpSuccess)
+                {
+                    string errorMessage = ExtractErrorMessage(httpResponse.Body, httpResponse.Error);
+
+                    LLMLogger.LogWarning($"Academic Cloud returned HTTP {httpResponse.StatusCode} for request {requestId}.");
+
+                    return LLMResponse.Failed(
+                        errorMessage,
+                        requestId,
+                        (int)httpResponse.StatusCode,
+                        stopwatch.ElapsedMilliseconds);
+                }
+
+                // 6. Parse the successful API response
+
+                AcademicCloudChatResponse parsedResponse;
+
+                try
+                {
+                    parsedResponse = JsonUtility.FromJson<AcademicCloudChatResponse>(httpResponse.Body);
+                }
+                catch (Exception exception)
+                {
+                    LLMLogger.LogError($"Could not parse Academic Cloud response for request {requestId}: {exception.Message}");
+
+                    return LLMResponse.Failed(
+                        "Could not parse Academic Cloud response: " +
+                        exception.Message,
+                        requestId,
+                        (int)httpResponse.StatusCode,
+                        stopwatch.ElapsedMilliseconds);
+                }
+
+                if (parsedResponse == null)
+                {
+                    return LLMResponse.Failed(
+                        "Academic Cloud returned an empty or invalid response.",
+                        requestId,
+                        (int)httpResponse.StatusCode,
+                        stopwatch.ElapsedMilliseconds);
+                }
+
+                if (parsedResponse.choices == null ||
+                    parsedResponse.choices.Count == 0 ||
+                    parsedResponse.choices[0] == null ||
+                    parsedResponse.choices[0].message == null)
+                {
+                    return LLMResponse.Failed(
+                        "Academic Cloud response contained no message.",
+                        requestId,
+                        (int)httpResponse.StatusCode,
+                        stopwatch.ElapsedMilliseconds);
+                }
+
+                string generatedText = parsedResponse.choices[0].message.content;
+
+                if (string.IsNullOrWhiteSpace(generatedText))
+                {
+                    return LLMResponse.Failed(
+                        "Academic Cloud returned an empty message.",
+                        requestId,
+                        (int)httpResponse.StatusCode,
+                        stopwatch.ElapsedMilliseconds);
+                }
+
+                // 7. Return a provider-independent response
+
+                LLMLogger.Log($"Request {requestId} succeeded in {stopwatch.ElapsedMilliseconds} ms.");
+
+                return LLMResponse.Successful(
+                    generatedText,
+                    requestId,
+                    (int)httpResponse.StatusCode,
+                    stopwatch.ElapsedMilliseconds);
             }
             catch (Exception exception)
             {
                 stopwatch.Stop();
 
-                UnityEngine.Debug.LogWarning($"Academic Cloud request failed: {exception.Message}");
+                // Do not log the API key, authorization headers, or complete request payload
+                LLMLogger.LogError($"Request {requestId} failed: {exception.Message}");
 
                 return LLMResponse.Failed(
                     "Request failed: " + exception.Message,
@@ -216,6 +256,11 @@ namespace LLMVRPrototype
             // Use LLMRequest.GetMessages() to preserve the existing system/history/user message ordering
             foreach (ChatMessage message in request.GetMessages())
             {
+                if (message == null)
+                {
+                    continue;
+                }
+
                 messages.Add(new AcademicCloudMessage(message.Role, message.Content));
             }
 
@@ -241,7 +286,7 @@ namespace LLMVRPrototype
                         return errorResponse.error.message;
                     }
                 }
-                catch
+                catch (Exception)
                 {
                     // Fall through to the generic HTTP error
                 }
