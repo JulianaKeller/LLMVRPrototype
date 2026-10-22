@@ -37,7 +37,7 @@ namespace LLMVRPrototype
 
         private async System.Threading.Tasks.Task TestConnectionAsync()
         {
-            var request = new LLMRequest("Reply with exactly: Academic Cloud connection successful.", "You are a concise assistant.");
+            var request = new LLMRequest("Reply with exactly 'Connection successful'.", "You are a concise assistant.");
 
             LLMResponse response = await llmOrchestrator.SendAsync(request);
 
