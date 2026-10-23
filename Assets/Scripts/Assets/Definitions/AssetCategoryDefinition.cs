@@ -1,18 +1,15 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace LLMVRPrototype.Assets
 {
     [CreateAssetMenu(fileName = "AssetCategory", menuName = "LLM VR/Database/Category Definition")]
-    public class AssetCategoryDefinition : ScriptableObject
+    public class AssetCategoryDefinition : RegistryEntryDefinition
     {
-        [SerializeField] private string categoryId; // e.g. environment.skyboxes
-        [SerializeField] private string displayName;
-        [SerializeField] private string description;
         [SerializeField] private AssetCategoryDefinition parentCategory;
 
-        public string CategoryId => categoryId;
-        public string DisplayName => displayName;
-        public string Description => description;
+        public string CategoryId => id;
+
         public AssetCategoryDefinition ParentCategory => parentCategory;
     }
 }

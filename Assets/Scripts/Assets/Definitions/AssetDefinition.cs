@@ -13,10 +13,10 @@ namespace LLMVRPrototype
 
         [Header("Classification")]
         [SerializeField] private string categoryId;
-        [SerializeField] private string subcategoryId;
+        [SerializeField] private string parentCategoryId;
         [SerializeField] private List<string> tagIds = new();
         [SerializeField] private List<string> styleTagIds = new();
-        [SerializeField] private List<string> compatibleRoomIds = new();
+        // [SerializeField] private List<string> compatibleRoomIds = new();
 
         [Header("Appearance")]
         [SerializeField] private List<Color> dominantColors = new();
@@ -32,10 +32,10 @@ namespace LLMVRPrototype
         public string DisplayName => displayName;
         public string Description => description;
         public string CategoryId => categoryId;
-        public string SubcategoryId => subcategoryId;
+        public string ParentCategoryId => parentCategoryId;
         public IReadOnlyList<string> TagIds => tagIds;
         public IReadOnlyList<string> StyleTagIds => styleTagIds;
-        public IReadOnlyList<string> CompatibleRoomIds => compatibleRoomIds;
+        // public IReadOnlyList<string> CompatibleRoomIds => compatibleRoomIds;
         public IReadOnlyList<Color> DominantColors => dominantColors;
         public Sprite Thumbnail => thumbnail;
         public IReadOnlyList<string> SupportedOperationIds => supportedOperationIds;

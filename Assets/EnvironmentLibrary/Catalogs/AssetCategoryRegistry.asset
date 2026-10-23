@@ -12,4 +12,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ca352f4fe39e2d64296a2930070b988d, type: 3}
   m_Name: AssetCategoryRegistry
   m_EditorClassIdentifier: Assembly-CSharp::LLMVRPrototype.AssetCategoryRegistry
-  categories: []
+  entries:
+  - {fileID: 0}
+  - {fileID: 11400000, guid: 855a98a8715268b45bb34154b60c5930, type: 2}

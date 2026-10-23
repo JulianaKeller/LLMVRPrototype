@@ -1,57 +1,38 @@
 using LLMVRPrototype.Assets;
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using Unity.AppUI.UI;
 using UnityEngine;
 
 namespace LLMVRPrototype
 {
     [CreateAssetMenu(fileName = "AssetCategoryRegistry", menuName = "LLM VR/Database/Category Registry")]
-    public class AssetCategoryRegistry : ScriptableObject
+    public class AssetCategoryRegistry : Registry<AssetCategoryDefinition>
     {
-        [SerializeField]
-        private List<AssetCategoryDefinition> categories = new();
 
-        private Dictionary<string, AssetCategoryDefinition> categoriesById;
-
-        public IReadOnlyList<AssetCategoryDefinition> Categories => categories;
-
-        public void RebuildIndex()
-        {
-            categoriesById = new Dictionary<string, AssetCategoryDefinition>(StringComparer.OrdinalIgnoreCase);
-
-            foreach (AssetCategoryDefinition category in categories)
-            {
-                if (category == null || string.IsNullOrWhiteSpace(category.CategoryId))
-                {
-                    continue;
-                }
-
-                string id = category.CategoryId.Trim();
-
-                if (!categoriesById.TryAdd(id, category))
-                {
-                    Debug.LogWarning($"Duplicate category ID '{id}'.", this);
-                }
-            }
-        }
+        public IReadOnlyList<AssetCategoryDefinition> Categories =>
+        entries.Cast<AssetCategoryDefinition>().ToList();
 
         public bool TryGetById(string categoryId, out AssetCategoryDefinition definition)
         {
-            if (categoriesById == null)
-                RebuildIndex();
-
-            return categoriesById.TryGetValue(categoryId?.Trim() ?? string.Empty, out definition);
+            definition = null;
+            if (base.TryGetById(categoryId, out RegistryEntryDefinition baseDefinition) && baseDefinition is AssetCategoryDefinition categoryDef)
+            {
+                definition = categoryDef;
+                return true;
+            }
+            return false;
         }
 
-        public bool Contains(string categoryId)
+        public bool RegisterCategory(AssetCategoryDefinition category)
         {
-            return TryGetById(categoryId, out _);
+            return base.RegisterEntry(category);
         }
 
-        public void AddCategory(AssetCategoryDefinition category)
+        public bool UnregisterCategory(AssetCategoryDefinition category)
         {
-            categories.Add(category);
-            RebuildIndex();
+            return base.UnregisterEntry(category);
         }
     }
 }

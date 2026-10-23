@@ -15,7 +15,7 @@ using static UnityEngine.Rendering.STP;
 namespace LLMVRPrototype.EditorTools
 {
     // This popup edits the ScriptableObject through Unity's SerializedObject
-    public class TagEditorWindow : EditorWindow
+    public class TagEditorWindow : DatabaseEditorWindow
     {
         private const string DefaultTagFolder = "Assets/EnvironmentLibrary/Definitions/Tags";
 
@@ -31,12 +31,7 @@ namespace LLMVRPrototype.EditorTools
         private Label selectedParentLabel;
         private VisualElement parentTreeContainer;
 
-        private ProviderConfig selectedConfig;
-        private bool metadataGenerationStarted;
-        private bool metadataGenerationInProgress;
-
-        private const string ConfigPreferenceKey = "LLMVRPrototype.TagEditor.SelectedProviderConfigPath";
-        private ObjectField apiConfigField;
+        #region UI Methods
 
         public static void OpenForCreate(
             AssetTagRegistry registry,
@@ -57,7 +52,7 @@ namespace LLMVRPrototype.EditorTools
 
             SerializedObject serialized = new SerializedObject(window.tag);
             serialized.FindProperty("displayName").stringValue = displayName;
-            serialized.FindProperty("tagId").stringValue = GenerateUniqueTagId(displayName, registry);
+            serialized.FindProperty("id").stringValue = GenerateUniqueTagId(displayName, registry);
             serialized.ApplyModifiedPropertiesWithoutUndo();
 
             window.ShowUtility();
@@ -115,7 +110,7 @@ namespace LLMVRPrototype.EditorTools
             heading.style.marginBottom = 10;
             container.Add(heading);
 
-            AddProperty(container, "tagId", "Tag ID");
+            AddProperty(container, "id", "Tag ID");
             AddProperty(container, "displayName", "Display Name");
             AddProperty(container, "description", "Description");
             AddProperty(container, "synonyms", "Synonyms");
@@ -161,9 +156,28 @@ namespace LLMVRPrototype.EditorTools
             rootVisualElement.RegisterCallback<KeyDownEvent>(OnKeyDown, TrickleDown.TrickleDown);
         }
 
+        private void AddProperty(
+            VisualElement parent,
+            string propertyName,
+            string label)
+        {
+            SerializedProperty property = serializedTag.FindProperty(propertyName);
+
+            if (property == null)
+            {
+                Debug.LogWarning($"Tag property '{propertyName}' was not found.");
+                return;
+            }
+
+            var field = new PropertyField(property, label);
+            field.Bind(serializedTag);
+            field.style.marginBottom = 6;
+            parent.Add(field);
+        }
+
+#endregion
+
         #region LLM API call
-
-
 
         private void BuildMetadataGenerationUI(VisualElement container)
         {
@@ -384,25 +398,6 @@ namespace LLMVRPrototype.EditorTools
 
         #endregion
 
-        private void AddProperty(
-            VisualElement parent,
-            string propertyName,
-            string label)
-        {
-            SerializedProperty property = serializedTag.FindProperty(propertyName);
-
-            if (property == null)
-            {
-                Debug.LogWarning($"Tag property '{propertyName}' was not found.");
-                return;
-            }
-
-            var field = new PropertyField(property, label);
-            field.Bind(serializedTag);
-            field.style.marginBottom = 6;
-            parent.Add(field);
-        }
-
         #region Parent Selector
 
         private void BuildParentSelector(VisualElement container)
@@ -601,7 +596,9 @@ namespace LLMVRPrototype.EditorTools
             RefreshParentTree();
         }
 
-#endregion
+        #endregion
+
+        #region Interaction
 
         private void OnKeyDown(KeyDownEvent evt)
         {
@@ -617,6 +614,10 @@ namespace LLMVRPrototype.EditorTools
                 CancelAndClose();
             }
         }
+
+        #endregion
+
+        #region Saving, Closing, Deleting
 
         private void SaveAndClose()
         {
@@ -701,6 +702,102 @@ namespace LLMVRPrototype.EditorTools
             Close();
         }
 
+        private static string SanitizeFileName(string fileName)
+        {
+            foreach (char invalidCharacter in System.IO.Path.GetInvalidFileNameChars())
+            {
+                fileName = fileName.Replace(invalidCharacter, '-');
+            }
+
+            return fileName.Trim();
+        }
+
+        private static bool EnsureFolderExists(string folderPath)
+        {
+            if (AssetDatabase.IsValidFolder(folderPath))
+                return true;
+
+            string[] parts = folderPath.Split('/');
+            if (parts.Length == 0 || parts[0] != "Assets")
+                return false;
+
+            string currentPath = "Assets";
+
+            for (int i = 1; i < parts.Length; i++)
+            {
+                string nextPath = $"{currentPath}/{parts[i]}";
+
+                if (!AssetDatabase.IsValidFolder(nextPath))
+                    AssetDatabase.CreateFolder(currentPath, parts[i]);
+
+                if (!AssetDatabase.IsValidFolder(nextPath))
+                    return false;
+
+                currentPath = nextPath;
+            }
+
+            return true;
+        }
+
+        private void CancelAndClose()
+        {
+            if (isNewTag && tag != null)
+                DestroyImmediate(tag);
+
+            Close();
+        }
+
+        private void DeleteTag()
+        {
+            if (tag == null || isNewTag || registry == null)
+                return;
+
+            // Do not leave child tags pointing at a deleted parent.
+            foreach (AssetTagDefinition existing in registry.Tags)
+            {
+                if (existing != null && existing.ParentTag == tag)
+                {
+                    EditorUtility.DisplayDialog(
+                        "Cannot Delete Tag",
+                        $"'{existing.DisplayName}' uses this tag as its parent. " +
+                        "Reassign or delete its child tags first.",
+                        "OK");
+                    return;
+                }
+            }
+
+            bool confirmed = EditorUtility.DisplayDialog(
+                "Delete Tag",
+                $"Delete '{tag.DisplayName}'? This cannot be undone.",
+                "Delete",
+                "Cancel");
+
+            if (!confirmed)
+                return;
+
+            string assetPath = AssetDatabase.GetAssetPath(tag);
+
+            if (string.IsNullOrEmpty(assetPath) ||
+                !AssetDatabase.DeleteAsset(assetPath))
+            {
+                statusLabel.text = "Failed to delete the tag asset. Check the Console.";
+                return;
+            }
+
+            registry.UnregisterTag(tag);
+            EditorUtility.SetDirty(registry);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+
+            onSaved?.Invoke(null);
+            tag = null;
+            Close();
+        }
+
+        #endregion
+
+        #region ID
+
         private bool HasDuplicateId(AssetTagDefinition candidate)
         {
             foreach (AssetTagDefinition existing in registry.Tags)
@@ -719,16 +816,6 @@ namespace LLMVRPrototype.EditorTools
 
             return false;
         }
-
-        private void CancelAndClose()
-        {
-            if (isNewTag && tag != null)
-                DestroyImmediate(tag);
-
-            Close();
-        }
-
-        #region Generate Tag ID
 
         private static string GenerateUniqueTagId(
             string displayName,
@@ -802,90 +889,6 @@ namespace LLMVRPrototype.EditorTools
 
 #endregion
 
-        private void DeleteTag()
-        {
-            if (tag == null || isNewTag || registry == null)
-                return;
-
-            // Do not leave child tags pointing at a deleted parent.
-            foreach (AssetTagDefinition existing in registry.Tags)
-            {
-                if (existing != null && existing.ParentTag == tag)
-                {
-                    EditorUtility.DisplayDialog(
-                        "Cannot Delete Tag",
-                        $"'{existing.DisplayName}' uses this tag as its parent. " +
-                        "Reassign or delete its child tags first.",
-                        "OK");
-                    return;
-                }
-            }
-
-            bool confirmed = EditorUtility.DisplayDialog(
-                "Delete Tag",
-                $"Delete '{tag.DisplayName}'? This cannot be undone.",
-                "Delete",
-                "Cancel");
-
-            if (!confirmed)
-                return;
-
-            string assetPath = AssetDatabase.GetAssetPath(tag);
-
-            if (string.IsNullOrEmpty(assetPath) ||
-                !AssetDatabase.DeleteAsset(assetPath))
-            {
-                statusLabel.text = "Failed to delete the tag asset. Check the Console.";
-                return;
-            }
-
-            registry.UnregisterTag(tag);
-            EditorUtility.SetDirty(registry);
-            AssetDatabase.SaveAssets();
-            AssetDatabase.Refresh();
-
-            onSaved?.Invoke(null);
-            tag = null;
-            Close();
-        }
-
-        private static string SanitizeFileName(string fileName)
-        {
-            foreach (char invalidCharacter in System.IO.Path.GetInvalidFileNameChars())
-            {
-                fileName = fileName.Replace(invalidCharacter, '-');
-            }
-
-            return fileName.Trim();
-        }
-
-        private static bool EnsureFolderExists(string folderPath)
-        {
-            if (AssetDatabase.IsValidFolder(folderPath))
-                return true;
-
-            string[] parts = folderPath.Split('/');
-            if (parts.Length == 0 || parts[0] != "Assets")
-                return false;
-
-            string currentPath = "Assets";
-
-            for (int i = 1; i < parts.Length; i++)
-            {
-                string nextPath = $"{currentPath}/{parts[i]}";
-
-                if (!AssetDatabase.IsValidFolder(nextPath))
-                    AssetDatabase.CreateFolder(currentPath, parts[i]);
-
-                if (!AssetDatabase.IsValidFolder(nextPath))
-                    return false;
-
-                currentPath = nextPath;
-            }
-
-            return true;
-        }
-
         private void OnDestroy()
         {
             if (isNewTag && tag != null &&
@@ -895,66 +898,7 @@ namespace LLMVRPrototype.EditorTools
             }
         }
 
-        #region Config Selection
-
-
-        private void SaveSelectedConfig(ProviderConfig config)
-        {
-            selectedConfig = config;
-
-            if (config == null)
-            {
-                EditorPrefs.DeleteKey(ConfigPreferenceKey);
-                Debug.Log("[TagEditor] Cleared saved provider config.");
-                return;
-            }
-
-            string path = AssetDatabase.GetAssetPath(config);
-
-            if (string.IsNullOrEmpty(path))
-            {
-                Debug.LogWarning("[TagEditor] Cannot save config selection: the selected config is not a project asset.");
-                return;
-            }
-
-            EditorPrefs.SetString(ConfigPreferenceKey, path);
-
-            Debug.Log($"[TagEditor] Saved provider config: {path}");
-        }
-
-        private ProviderConfig LoadSavedConfig()
-        {
-            if (!EditorPrefs.HasKey(ConfigPreferenceKey))
-            {
-                Debug.Log("[TagEditor] No saved provider config found.");
-                return null;
-            }
-
-            string path = EditorPrefs.GetString(ConfigPreferenceKey);
-
-            if (string.IsNullOrWhiteSpace(path))
-            {
-                EditorPrefs.DeleteKey(ConfigPreferenceKey);
-                return null;
-            }
-
-            ProviderConfig config = AssetDatabase.LoadAssetAtPath<ProviderConfig>(path);
-
-            if (config == null)
-            {
-                Debug.LogWarning($"[TagEditor] Saved provider config could not be loaded: {path}");
-
-                EditorPrefs.DeleteKey(ConfigPreferenceKey);
-                return null;
-            }
-
-            Debug.Log($"[TagEditor] Restored provider config: {path}");
-            return config;
-        }
-
-
-        #endregion
-
+        #region Metadata Generation LLM Temporary for Logging
 
         private async void StartMetadataGenerationTemp()
         {
@@ -1127,5 +1071,6 @@ namespace LLMVRPrototype.EditorTools
                 Debug.Log("[Metadata] Finally block reached.");
             }
         }
+        #endregion
     }
 }
