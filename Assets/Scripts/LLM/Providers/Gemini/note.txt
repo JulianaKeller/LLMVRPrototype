@@ -1,0 +1,2 @@
+Do not use the Gemini API for Scene Generation in the final prototype. Gemini is not secure for personal data.
+Gemini API is only intended for database Enrichment in the final prototype.

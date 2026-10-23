@@ -8,11 +8,22 @@ namespace Project.LLM.Core
     internal sealed class LocalLLMSecretsData
     {
         public string academicCloudApiKey;
+        public string geminiApiKey;
     }
 
     public class LocalLLMSecrets
     {
         public static string LoadAcademicCloudApiKey()
+        {
+            return LoadApiKey("academicCloud");
+        }
+
+        public static string LoadGeminiApiKey()
+        {
+            return LoadApiKey("gemini");
+        }
+
+        private static string LoadApiKey(string providerName)
         {
             // The Unity project root is the parent of Application.dataPath
             string projectRoot = Directory.GetParent(Application.dataPath)?.FullName;
@@ -39,14 +50,30 @@ namespace Project.LLM.Core
 
                 LocalLLMSecretsData data = JsonUtility.FromJson<LocalLLMSecretsData>(json);
 
-                if (data == null || string.IsNullOrWhiteSpace(data.academicCloudApiKey))
+                if (data == null)
                 {
-                    Debug.LogWarning("The local LLM configuration contains no API key.");
-
+                    Debug.LogWarning("The local LLM configuration contains no data.");
                     return null;
                 }
+                switch (providerName)
+                {
+                    case "academicCloud":
+                        if (string.IsNullOrWhiteSpace(data.academicCloudApiKey))
+                        {
+                            Debug.LogWarning("The local LLM configuration contains no AcademicCloud API Key.");
+                            return null;
+                        }
+                        return data.academicCloudApiKey;
+                    case "gemini":
+                        if (string.IsNullOrWhiteSpace(data.geminiApiKey))
+                        {
+                            Debug.LogWarning("The local LLM configuration contains no Gemini API Key.");
+                            return null;
+                        }
+                        return data.geminiApiKey;
+                }
 
-                return data.academicCloudApiKey;
+                return null;
             }
             catch (Exception exception)
             {

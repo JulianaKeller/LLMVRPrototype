@@ -50,10 +50,50 @@ namespace LLMVRPrototype.Assets
             return TryGetById(tagId, out _);
         }
 
-        public void AddTag(AssetTagDefinition tag)
+        private void AddTag(AssetTagDefinition tag)
         {
             tags.Add(tag);
             RebuildIndex();
+        }
+
+        public bool RegisterTag(AssetTagDefinition tag)
+        {
+            if (tag == null || string.IsNullOrWhiteSpace(tag.TagId))
+                return false;
+
+            if (tags == null)
+                tags = new List<AssetTagDefinition>();
+
+            foreach (AssetTagDefinition existing in tags)
+            {
+                if (existing == tag)
+                    return true;
+
+                if (existing != null &&
+                    string.Equals(
+                        existing.TagId,
+                        tag.TagId,
+                        System.StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+            }
+
+            AddTag(tag);
+            return true;
+        }
+
+        public bool UnregisterTag(AssetTagDefinition tag)
+        {
+            if (tag == null || tags == null)
+                return false;
+
+            bool removed = tags.Remove(tag);
+
+            if (removed)
+                RebuildIndex();
+
+            return removed;
         }
     }
 }

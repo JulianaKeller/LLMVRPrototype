@@ -105,26 +105,10 @@ namespace LLMVRPrototype
 
                 var headers = new Dictionary<string, string>
                 {
-                    {
-                        "Authorization",
-                        "Bearer " + apiKey
-                    },
-                    {
-                        "Content-Type",
-                        "application/json"
-                    },
-                    {
-                        "Accept",
-                        "application/json"
-                    }
+                    { "Authorization", "Bearer " + apiKey }
                 };
 
-                var httpRequest = new HttpRequestData(
-                    url: endpoint,
-                    method: "POST",
-                    body: json,
-                    headers: headers,
-                    timeoutSeconds: config.TimeoutSeconds);
+                HttpRequestData httpRequest = LLMHttpRequestFactory.CreateJsonPost(endpoint, json, config.TimeoutSeconds, headers);
 
                 // 3. Execute the HTTP request through the transport
 

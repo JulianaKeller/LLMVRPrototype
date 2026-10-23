@@ -241,6 +241,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LLMVRPrototype.LLMTest
   academicCloudConfig: {fileID: 11400000, guid: f402a2b138717ad41a42e04867268dbd, type: 2}
+  geminiConfig: {fileID: 11400000, guid: 13c8ef51382d2284bb38bfcdc01f8fdf, type: 2}
 --- !u!4 &701875656
 Transform:
   m_ObjectHideFlags: 0

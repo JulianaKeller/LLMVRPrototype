@@ -3,7 +3,7 @@ using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace LLMVRPrototype
+namespace LLMVRPrototype.EditorTools
 {
     public class DatabaseToolSection
     {

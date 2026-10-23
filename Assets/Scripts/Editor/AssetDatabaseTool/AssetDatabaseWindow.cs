@@ -144,7 +144,7 @@ namespace LLMVRPrototype.EditorTools
                     break;
 
                 case "Tags":
-                    new CategoriesSection(context, contentContainer).Build();
+                    new TagsSection(context, contentContainer).Build();
                     break;
             }
         }

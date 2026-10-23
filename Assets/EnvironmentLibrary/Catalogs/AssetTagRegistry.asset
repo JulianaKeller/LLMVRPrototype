@@ -12,4 +12,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d9c13745ad51202468741159206d81e0, type: 3}
   m_Name: AssetTagRegistry
   m_EditorClassIdentifier: Assembly-CSharp::LLMVRPrototype.Assets.AssetTagRegistry
-  tags: []
+  tags:
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 11400000, guid: 8e5d0e9b974406f4abd4dde857e4528d, type: 2}
+  - {fileID: 11400000, guid: 6d0d44407c6de7343a3ed0443affc903, type: 2}
+  - {fileID: 11400000, guid: ac070725c7035cb488507d14971c8f3d, type: 2}
