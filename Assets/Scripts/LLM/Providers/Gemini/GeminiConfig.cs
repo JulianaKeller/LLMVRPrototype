@@ -1,3 +1,4 @@
+using LLMVRPrototype.LLM.Providers;
 using UnityEngine;
 
 namespace Project.LLM.Providers.Gemini
@@ -5,11 +6,13 @@ namespace Project.LLM.Providers.Gemini
     [CreateAssetMenu(
         fileName = "GeminiConfig",
         menuName = "LLM/Providers/Gemini Configuration")]
-    public sealed class GeminiConfig : ScriptableObject
+    public sealed class GeminiConfig : ProviderConfig
     {
         [Header("API Endpoint")]
         [SerializeField]
         private string baseUrl = "https://generativelanguage.googleapis.com/v1beta";
+
+        public override string ApiKeySecretName => "geminiApiKey";
 
         [Header("Model")]
         [SerializeField]

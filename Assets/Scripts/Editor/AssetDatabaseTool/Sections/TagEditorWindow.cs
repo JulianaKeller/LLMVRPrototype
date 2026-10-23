@@ -1,4 +1,8 @@
+using LLMVRPrototype;
 using LLMVRPrototype.Assets;
+using LLMVRPrototype.LLM.Providers;
+using Project.LLM.Core;
+using Project.LLM.Providers.Gemini;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -6,14 +10,14 @@ using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
+using static UnityEngine.Rendering.STP;
 
 namespace LLMVRPrototype.EditorTools
 {
     // This popup edits the ScriptableObject through Unity's SerializedObject
     public class TagEditorWindow : EditorWindow
     {
-        private const string DefaultTagFolder =
-            "Assets/EnvironmentLibrary/Definitions/Tags";
+        private const string DefaultTagFolder = "Assets/EnvironmentLibrary/Definitions/Tags";
 
         private AssetTagDefinition tag;
         private AssetTagRegistry registry;
@@ -26,6 +30,13 @@ namespace LLMVRPrototype.EditorTools
         private Label statusLabel;
         private Label selectedParentLabel;
         private VisualElement parentTreeContainer;
+
+        private ProviderConfig selectedConfig;
+        private bool metadataGenerationStarted;
+        private bool metadataGenerationInProgress;
+
+        private const string ConfigPreferenceKey = "LLMVRPrototype.TagEditor.SelectedProviderConfigPath";
+        private ObjectField apiConfigField;
 
         public static void OpenForCreate(
             AssetTagRegistry registry,
@@ -142,8 +153,236 @@ namespace LLMVRPrototype.EditorTools
                 container.Add(deleteButton);
             }
 
+            if (isNewTag)
+            {
+                BuildMetadataGenerationUI(container);
+            }
+
             rootVisualElement.RegisterCallback<KeyDownEvent>(OnKeyDown, TrickleDown.TrickleDown);
         }
+
+        #region LLM API call
+
+
+
+        private void BuildMetadataGenerationUI(VisualElement container)
+        {
+            var section = new Foldout
+            {
+                text = "AI Metadata Generation",
+                value = true
+            };
+
+            section.style.marginTop = 12;
+            container.Add(section);
+
+            apiConfigField = new ObjectField("LLM API Configuration")
+            {
+                objectType = typeof(ProviderConfig),
+                allowSceneObjects = false
+            };
+
+            section.Add(apiConfigField);
+
+            // Load the previously selected config first.
+            selectedConfig = LoadSavedConfig();
+
+            // If no saved config exists, use the config only when there is exactly one available.
+            if (selectedConfig == null)
+            {
+                string[] configGuids = AssetDatabase.FindAssets("t:ProviderConfig");
+
+                if (configGuids.Length == 1)
+                {
+                    string path = AssetDatabase.GUIDToAssetPath(configGuids[0]);
+
+                    selectedConfig = AssetDatabase.LoadAssetAtPath<ProviderConfig>(path);
+
+                    if (selectedConfig != null)
+                        SaveSelectedConfig(selectedConfig);
+                }
+            }
+
+            // Explicitly restore the selection in the UI.
+            apiConfigField.SetValueWithoutNotify(selectedConfig);
+
+            apiConfigField.RegisterValueChangedCallback(evt =>
+            {
+                var config = evt.newValue as ProviderConfig;
+
+                SaveSelectedConfig(config);
+
+                metadataGenerationStarted = false;
+
+                if (config != null)
+                    StartMetadataGenerationTemp();
+                else
+                    statusLabel.text = "Select a provider configuration.";
+            });
+
+            var retryButton = new Button(() =>
+            {
+                if (metadataGenerationInProgress)
+                    return;
+
+                metadataGenerationStarted = false;
+                StartMetadataGenerationTemp();
+            })
+            {
+                text = "Generate / Retry Metadata"
+            };
+
+            section.Add(retryButton);
+
+            if (selectedConfig == null)
+            {
+                statusLabel.text = "Select a provider configuration to generate metadata.";
+            }
+            else
+            {
+                StartMetadataGenerationTemp();
+            }
+        }
+
+
+        private async void StartMetadataGeneration()
+        {
+            Debug.Log(
+                $"Metadata generation: isNewTag={isNewTag}, " +
+                $"tagNull={tag == null}, " +
+                $"configNull={selectedConfig == null}, " +
+                $"started={metadataGenerationStarted}, " +
+                $"inProgress={metadataGenerationInProgress}"
+            );
+
+            if (!isNewTag || tag == null || selectedConfig == null)
+                return;
+
+            if (metadataGenerationInProgress || metadataGenerationStarted)
+                return;
+
+            metadataGenerationStarted = true;
+            metadataGenerationInProgress = true;
+
+            statusLabel.text = "Generating tag description and synonyms...";
+
+            try
+            {
+                string apiKey = LocalLLMSecrets.LoadApiKey(selectedConfig.ApiKeySecretName);
+
+                if (string.IsNullOrWhiteSpace(apiKey))
+                {
+                    statusLabel.text = "Gemini API key is unavailable. Check LocalLLMSecrets.";
+                    return;
+                }
+
+                serializedTag.Update();
+
+                SerializedProperty nameProperty = serializedTag.FindProperty("displayName");
+
+                if (nameProperty == null || string.IsNullOrWhiteSpace(nameProperty.stringValue))
+                {
+                    statusLabel.text = "Enter a tag display name first.";
+                    return;
+                }
+
+                // Read the current name when generation starts.
+                string displayName = nameProperty.stringValue.Trim();
+
+                ILLMProvider provider = LLMProviderFactory.Create(selectedConfig, apiKey);
+                var service = new LLMMetadataGenerationService(provider);
+
+                MetadataGenerationResult<TagMetadata> result =
+                    await service.GenerateTagMetadataAsync(
+                        displayName,
+                        selectedParentTag);
+
+                Debug.Log($"Metadata result is null: {result == null}");
+
+                if (result != null)
+                {
+                    Debug.Log($"Metadata success: {result.Success}");
+                    Debug.Log($"Metadata error: {result.ErrorMessage}");
+
+                    if (result.Data != null)
+                    {
+                        Debug.Log($"Description: '{result.Data.Description}'");
+                        Debug.Log(
+                            $"Synonyms: {string.Join(", ", result.Data.Synonyms ?? new List<string>())}"
+                        );
+                    }
+                }
+
+                // The window may have been closed while the request was running.
+                if (this == null || tag == null || !isNewTag)
+                    return;
+
+                if (result == null || !result.Success)
+                {
+                    statusLabel.text = result == null
+                        ? "Metadata generation failed."
+                        : result.ErrorMessage;
+                    return;
+                }
+
+                // Preserve any values the user entered while the request was running.
+                serializedTag.Update();
+
+                SerializedProperty descriptionProperty = serializedTag.FindProperty("description");
+
+                SerializedProperty synonymsProperty = serializedTag.FindProperty("synonyms");
+
+                bool changed = false;
+
+                if (descriptionProperty != null &&
+                    string.IsNullOrWhiteSpace(descriptionProperty.stringValue))
+                {
+                    descriptionProperty.stringValue = result.Data.Description;
+                    changed = true;
+                }
+
+                if (synonymsProperty != null &&
+                    synonymsProperty.isArray &&
+                    synonymsProperty.arraySize == 0)
+                {
+                    synonymsProperty.arraySize = result.Data.Synonyms.Count;
+
+                    for (int i = 0; i < result.Data.Synonyms.Count; i++)
+                    {
+                        synonymsProperty.GetArrayElementAtIndex(i).stringValue = result.Data.Synonyms[i];
+                    }
+
+                    changed = true;
+                }
+
+                Debug.Log(
+                    $"Applying metadata: changed={changed}, " +
+                    $"descriptionPropertyFound={descriptionProperty != null}, " +
+                    $"synonymsPropertyFound={synonymsProperty != null}"
+                );
+
+                if (changed)
+                    serializedTag.ApplyModifiedProperties();
+
+                statusLabel.text = changed
+                    ? "Metadata generated. Review and edit it before saving."
+                    : "Metadata generated, but existing field values were preserved.";
+            }
+            catch (Exception ex)
+            {
+                Debug.LogException(ex);
+
+                if (this != null && statusLabel != null)
+                    statusLabel.text = "Metadata generation failed. See the Console.";
+            }
+            finally
+            {
+                if (this != null)
+                    metadataGenerationInProgress = false;
+            }
+        }
+
+        #endregion
 
         private void AddProperty(
             VisualElement parent,
@@ -653,6 +892,239 @@ namespace LLMVRPrototype.EditorTools
                 !EditorUtility.IsPersistent(tag))
             {
                 DestroyImmediate(tag);
+            }
+        }
+
+        #region Config Selection
+
+
+        private void SaveSelectedConfig(ProviderConfig config)
+        {
+            selectedConfig = config;
+
+            if (config == null)
+            {
+                EditorPrefs.DeleteKey(ConfigPreferenceKey);
+                Debug.Log("[TagEditor] Cleared saved provider config.");
+                return;
+            }
+
+            string path = AssetDatabase.GetAssetPath(config);
+
+            if (string.IsNullOrEmpty(path))
+            {
+                Debug.LogWarning("[TagEditor] Cannot save config selection: the selected config is not a project asset.");
+                return;
+            }
+
+            EditorPrefs.SetString(ConfigPreferenceKey, path);
+
+            Debug.Log($"[TagEditor] Saved provider config: {path}");
+        }
+
+        private ProviderConfig LoadSavedConfig()
+        {
+            if (!EditorPrefs.HasKey(ConfigPreferenceKey))
+            {
+                Debug.Log("[TagEditor] No saved provider config found.");
+                return null;
+            }
+
+            string path = EditorPrefs.GetString(ConfigPreferenceKey);
+
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                EditorPrefs.DeleteKey(ConfigPreferenceKey);
+                return null;
+            }
+
+            ProviderConfig config = AssetDatabase.LoadAssetAtPath<ProviderConfig>(path);
+
+            if (config == null)
+            {
+                Debug.LogWarning($"[TagEditor] Saved provider config could not be loaded: {path}");
+
+                EditorPrefs.DeleteKey(ConfigPreferenceKey);
+                return null;
+            }
+
+            Debug.Log($"[TagEditor] Restored provider config: {path}");
+            return config;
+        }
+
+
+        #endregion
+
+
+        private async void StartMetadataGenerationTemp()
+        {
+            Debug.Log("[Metadata] Step 1: Entered method.");
+
+            if (!isNewTag || tag == null || selectedConfig == null)
+            {
+                Debug.LogWarning(
+                    $"[Metadata] Stopped by guard: isNewTag={isNewTag}, " +
+                    $"tagNull={tag == null}, configNull={selectedConfig == null}"
+                );
+                return;
+            }
+
+            if (metadataGenerationInProgress || metadataGenerationStarted)
+            {
+                Debug.LogWarning(
+                    $"[Metadata] Stopped by state: inProgress={metadataGenerationInProgress}, " +
+                    $"started={metadataGenerationStarted}"
+                );
+                return;
+            }
+
+            metadataGenerationStarted = true;
+            metadataGenerationInProgress = true;
+
+            try
+            {
+                Debug.Log("[Metadata] Step 2: Loading API key.");
+                string apiKey = LocalLLMSecrets.LoadApiKey(
+                    selectedConfig.ApiKeySecretName
+                );
+
+                Debug.Log(
+                    $"[Metadata] Step 3: API key available={!string.IsNullOrWhiteSpace(apiKey)}"
+                );
+
+                if (string.IsNullOrWhiteSpace(apiKey))
+                {
+                    statusLabel.text =
+                        "API key unavailable. Check LocalLLMSecrets.";
+                    return;
+                }
+
+                Debug.Log("[Metadata] Step 4: Reading tag name.");
+                serializedTag.Update();
+
+                SerializedProperty nameProperty =
+                    serializedTag.FindProperty("displayName");
+
+                if (nameProperty == null ||
+                    string.IsNullOrWhiteSpace(nameProperty.stringValue))
+                {
+                    statusLabel.text = "Enter a tag display name first.";
+                    Debug.LogWarning("[Metadata] Tag display name is empty.");
+                    return;
+                }
+
+                string displayName = nameProperty.stringValue.Trim();
+
+                Debug.Log(
+                    $"[Metadata] Step 5: Creating provider for '{displayName}'."
+                );
+
+                ILLMProvider provider =
+                    LLMProviderFactory.Create(selectedConfig, apiKey);
+
+                Debug.Log(
+                    $"[Metadata] Step 6: Provider created: " +
+                    $"{provider?.GetProviderName() ?? "NULL"}"
+                );
+
+                var service = new LLMMetadataGenerationService(provider);
+
+                Debug.Log("[Metadata] Step 7: Calling GenerateTagMetadataAsync.");
+
+                MetadataGenerationResult<TagMetadata> result =
+                    await service.GenerateTagMetadataAsync(
+                        displayName,
+                        selectedParentTag
+                    );
+
+                Debug.Log("[Metadata] Step 8: Async call returned.");
+
+                Debug.Log(
+                    $"[Metadata] Result null={result == null}, " +
+                    $"success={result?.Success}, error={result?.ErrorMessage}"
+                );
+
+                if (result?.Data != null)
+                {
+                    Debug.Log($"[Metadata] Description: {result.Data.Description}");
+                    Debug.Log(
+                        $"[Metadata] Synonyms: " +
+                        $"{string.Join(", ", result.Data.Synonyms ?? new List<string>())}"
+                    );
+                }
+
+                if (this == null || tag == null || !isNewTag)
+                {
+                    Debug.LogWarning(
+                        "[Metadata] Editor window or tag is no longer available."
+                    );
+                    return;
+                }
+
+                if (result == null || !result.Success || result.Data == null)
+                {
+                    statusLabel.text = result?.ErrorMessage
+                        ?? "Metadata generation failed.";
+                    return;
+                }
+
+                Debug.Log("[Metadata] Step 9: Applying generated metadata.");
+
+                serializedTag.Update();
+
+                SerializedProperty descriptionProperty =
+                    serializedTag.FindProperty("description");
+
+                SerializedProperty synonymsProperty =
+                    serializedTag.FindProperty("synonyms");
+
+                bool changed = false;
+
+                if (descriptionProperty != null &&
+                    string.IsNullOrWhiteSpace(descriptionProperty.stringValue) &&
+                    !string.IsNullOrWhiteSpace(result.Data.Description))
+                {
+                    descriptionProperty.stringValue = result.Data.Description;
+                    changed = true;
+                }
+
+                if (synonymsProperty != null &&
+                    synonymsProperty.isArray &&
+                    synonymsProperty.arraySize == 0 &&
+                    result.Data.Synonyms != null)
+                {
+                    synonymsProperty.arraySize = result.Data.Synonyms.Count;
+
+                    for (int i = 0; i < result.Data.Synonyms.Count; i++)
+                    {
+                        synonymsProperty.GetArrayElementAtIndex(i).stringValue =
+                            result.Data.Synonyms[i];
+                    }
+
+                    changed = true;
+                }
+
+                if (changed)
+                    serializedTag.ApplyModifiedProperties();
+
+                statusLabel.text = changed
+                    ? "Metadata generated. Review and edit it before saving."
+                    : "Metadata returned, but fields were empty or already populated.";
+
+                Debug.Log($"[Metadata] Step 10: Finished. Changed={changed}");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[Metadata] Exception: {ex}");
+                if (this != null && statusLabel != null)
+                    statusLabel.text = "Metadata generation failed. See the Console.";
+            }
+            finally
+            {
+                if (this != null)
+                    metadataGenerationInProgress = false;
+
+                Debug.Log("[Metadata] Finally block reached.");
             }
         }
     }

@@ -1,3 +1,4 @@
+using LLMVRPrototype.LLM.Providers;
 using UnityEngine;
 
 namespace Project.LLM.Providers.AcademicCloud
@@ -5,11 +6,13 @@ namespace Project.LLM.Providers.AcademicCloud
     [CreateAssetMenu(
         fileName = "AcademicCloudConfig",
         menuName = "LLM/Providers/Academic Cloud Configuration")]
-    public sealed class AcademicCloudConfig : ScriptableObject
+    public sealed class AcademicCloudConfig : ProviderConfig
     {
         [Header("API Endpoint")]
         [SerializeField]
         private string baseUrl = "https://chat-ai.academiccloud.de/v1";
+
+        public override string ApiKeySecretName => "academicCloudApiKey";
 
         [Header("Model")]
         [SerializeField]

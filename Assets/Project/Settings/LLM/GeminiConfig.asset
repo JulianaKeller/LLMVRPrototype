@@ -13,5 +13,5 @@ MonoBehaviour:
   m_Name: GeminiConfig
   m_EditorClassIdentifier: Assembly-CSharp::Project.LLM.Providers.Gemini.GeminiConfig
   baseUrl: https://generativelanguage.googleapis.com/v1beta
-  model: gemini-3.8-flash
+  model: gemini-3.5-flash-lite
   timeoutSeconds: 60

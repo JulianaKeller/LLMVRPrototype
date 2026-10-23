@@ -12,10 +12,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f6cde0ddb2929734790f442aee0ede15, type: 3}
   m_Name: cozy
   m_EditorClassIdentifier: Assembly-CSharp::LLMVRPrototype.AssetTagDefinition
-  tagId: cozy-6079a4bef8724d5b8a041418a630c246
+  tagId: cozy-a34fffdf04414d23b4615298baa4c5ab
   displayName: cozy
-  description: 
+  description: An inviting and comfortable aesthetic associated with warmth, relaxation, and a snug environment.
   parentTag: {fileID: 0}
   synonyms:
-  - comforting
+  - snug
   - comfortable
+  - warm
+  - homey
+  - inviting
+  - relaxing

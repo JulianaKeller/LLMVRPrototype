@@ -23,7 +23,7 @@ namespace Project.LLM.Core
             return LoadApiKey("gemini");
         }
 
-        private static string LoadApiKey(string providerName)
+        public static string LoadApiKey(string providerName)
         {
             // The Unity project root is the parent of Application.dataPath
             string projectRoot = Directory.GetParent(Application.dataPath)?.FullName;
@@ -58,22 +58,32 @@ namespace Project.LLM.Core
                 switch (providerName)
                 {
                     case "academicCloud":
+                    case "academicCloudApiKey":
                         if (string.IsNullOrWhiteSpace(data.academicCloudApiKey))
                         {
-                            Debug.LogWarning("The local LLM configuration contains no AcademicCloud API Key.");
+                            Debug.LogWarning(
+                                "The local LLM configuration contains no AcademicCloud API Key.");
                             return null;
                         }
+
                         return data.academicCloudApiKey;
+
                     case "gemini":
+                    case "geminiApiKey":
                         if (string.IsNullOrWhiteSpace(data.geminiApiKey))
                         {
-                            Debug.LogWarning("The local LLM configuration contains no Gemini API Key.");
+                            Debug.LogWarning(
+                                "The local LLM configuration contains no Gemini API Key.");
                             return null;
                         }
-                        return data.geminiApiKey;
-                }
 
-                return null;
+                        return data.geminiApiKey;
+
+                    default:
+                        Debug.LogWarning(
+                            $"Unknown LLM provider or secret name: '{providerName}'.");
+                        return null;
+                }
             }
             catch (Exception exception)
             {
