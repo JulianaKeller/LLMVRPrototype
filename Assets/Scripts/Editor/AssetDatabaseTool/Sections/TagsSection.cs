@@ -226,8 +226,7 @@ namespace LLMVRPrototype.EditorTools
             list.style.maxHeight = 280;
             list.style.marginTop = 4;
 
-            List<AssetTagDefinition> tags =
-                new List<AssetTagDefinition>(GetRegistry().Tags);
+            List<AssetTagDefinition> tags = new List<AssetTagDefinition>(GetRegistry().Tags);
 
             tags.RemoveAll(tag => tag == null);
             tags.Sort((a, b) =>

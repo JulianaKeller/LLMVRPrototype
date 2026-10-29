@@ -1,74 +1,80 @@
-using LLMVRPrototype.LLM.Providers;
 using UnityEditor;
-using UnityEditor.UIElements;
-using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace LLMVRPrototype.EditorTools
 {
-    public class DatabaseEditorWindow : EditorWindow
+    public abstract class DatabaseEditorWindow : EditorWindow
     {
-        protected const string ConfigPreferenceKey = "LLMVRPrototype.TagEditor.SelectedProviderConfigPath";
-        protected ObjectField apiConfigField;
-        protected ProviderConfig selectedConfig;
-        protected bool metadataGenerationStarted;
-        protected bool metadataGenerationInProgress;
+        protected Label statusLabel;
+        protected abstract SerializedObject MetadataSerializedObject { get; }
 
-        #region Config Selection
+        private MetadataGenerationController metadataController;
 
-        protected void SaveSelectedConfig(ProviderConfig config)
+        #region LLM API Generation call
+
+        protected void BuildMetadataGenerationUI(VisualElement container)
         {
-            selectedConfig = config;
+            metadataController = new MetadataGenerationController();
 
-            if (config == null)
-            {
-                EditorPrefs.DeleteKey(ConfigPreferenceKey);
-                Debug.Log("[EditorWindow] Cleared saved provider config.");
-                return;
-            }
-
-            string path = AssetDatabase.GetAssetPath(config);
-
-            if (string.IsNullOrEmpty(path))
-            {
-                Debug.LogWarning("[EditorWindow] Cannot save config selection: the selected config is not a project asset.");
-                return;
-            }
-
-            EditorPrefs.SetString(ConfigPreferenceKey, path);
-
-            Debug.Log($"[EditorWindow] Saved provider config: {path}");
+            metadataController.BuildUI(
+                container,
+                statusLabel,
+                GetMetadataInput,
+                ApplyGeneratedMetadata);
         }
 
-        protected ProviderConfig LoadSavedConfig()
+        protected abstract MetadataGenerationInput GetMetadataInput();
+
+        private void ApplyGeneratedMetadata(GeneratedMetadata metadata)
         {
-            if (!EditorPrefs.HasKey(ConfigPreferenceKey))
+            if (metadata == null)
+                return;
+
+            GeneratedTaxonomyMetadata taxonMetadata = metadata as GeneratedTaxonomyMetadata;
+
+            if(taxonMetadata != null)
             {
-                Debug.Log("[EditorWindow] No saved provider config found.");
-                return null;
+                SerializedObject serializedObject = MetadataSerializedObject;
+
+                if (serializedObject == null)
+                    return;
+
+                serializedObject.Update();
+
+                SerializedProperty description = serializedObject.FindProperty("description");
+
+                SerializedProperty synonyms = serializedObject.FindProperty("synonyms");
+
+                if (description != null && string.IsNullOrWhiteSpace(description.stringValue))
+                {
+                    description.stringValue = metadata.Description;
+                }
+
+                if (synonyms != null &&
+                    synonyms.isArray &&
+                    synonyms.arraySize == 0)
+                {
+                    synonyms.arraySize = taxonMetadata.Synonyms.Count;
+
+                    for (int i = 0; i < taxonMetadata.Synonyms.Count; i++)
+                    {
+                        synonyms.GetArrayElementAtIndex(i).stringValue = taxonMetadata.Synonyms[i];
+                    }
+                }
+
+                serializedObject.ApplyModifiedProperties();
             }
-
-            string path = EditorPrefs.GetString(ConfigPreferenceKey);
-
-            if (string.IsNullOrWhiteSpace(path))
+            else
             {
-                EditorPrefs.DeleteKey(ConfigPreferenceKey);
-                return null;
+                //Nothing is applied
             }
-
-            ProviderConfig config = AssetDatabase.LoadAssetAtPath<ProviderConfig>(path);
-
-            if (config == null)
-            {
-                Debug.LogWarning($"[EditorWindow] Saved provider config could not be loaded: {path}");
-
-                EditorPrefs.DeleteKey(ConfigPreferenceKey);
-                return null;
-            }
-
-            Debug.Log($"[EditorWindow] Restored provider config: {path}");
-            return config;
         }
 
         #endregion
+
+        protected virtual void OnDisable()
+        {
+            metadataController = null;
+        }
     }
 }

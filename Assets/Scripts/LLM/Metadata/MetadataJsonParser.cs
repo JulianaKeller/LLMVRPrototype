@@ -1,16 +1,20 @@
-using System;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Reflection;
 // use Newtonsoft JSON rather than Unity's JsonUtility, which can silently ignore unknown fields. This parser requires exactly two properties, with the expected names and types, and rejects Markdown fences, additional fields, malformed JSON, and duplicate property names.
 
 namespace LLMVRPrototype
 {
     public static class MetadataJsonParser
     {
-        public static bool TryParseTagMetadata(
+        public static bool TryParseGeneratedMetadata<TMetadata>(
             string json,
-            out TagMetadata metadata,
+            out TMetadata metadata,
             out string errorMessage)
+            where TMetadata : GeneratedMetadata
         {
             metadata = null;
             errorMessage = null;
@@ -23,7 +27,7 @@ namespace LLMVRPrototype
 
             try
             {
-                using (var reader = new JsonTextReader(new System.IO.StringReader(json)))
+                using (var reader = new JsonTextReader(new StringReader(json)))
                 {
                     reader.DateParseHandling = DateParseHandling.None;
 
@@ -34,7 +38,7 @@ namespace LLMVRPrototype
 
                     JToken token = JToken.Load(reader, settings);
 
-                    // Reject any non-whitespace content after the JSON object.
+                    // Reject content after the JSON object.
                     if (reader.Read())
                     {
                         errorMessage = "Unexpected content after the JSON object.";
@@ -47,50 +51,19 @@ namespace LLMVRPrototype
                         return false;
                     }
 
-                    var obj = (JObject)token;
-
-                    // Only the declared schema properties are permitted.
-                    if (obj.Count != 2 ||
-                        obj.Property("description") == null ||
-                        obj.Property("synonyms") == null)
-                    {
-                        errorMessage = "The JSON must contain exactly 'description' and 'synonyms'.";
-                        return false;
-                    }
-
-                    JToken descriptionToken = obj["description"];
-                    JToken synonymsToken = obj["synonyms"];
-
-                    if (descriptionToken.Type != JTokenType.String)
-                    {
-                        errorMessage = "'description' must be a string.";
-                        return false;
-                    }
-
-                    if (synonymsToken.Type != JTokenType.Array)
-                    {
-                        errorMessage = "'synonyms' must be an array of strings.";
-                        return false;
-                    }
-
-                    var synonyms = new System.Collections.Generic.List<string>();
-
-                    foreach (JToken item in (JArray)synonymsToken)
-                    {
-                        if (item.Type != JTokenType.String)
+                    JsonSerializer serializer = JsonSerializer.Create(
+                        new JsonSerializerSettings
                         {
-                            errorMessage = "Every synonym must be a string.";
-                            return false;
-                        }
+                            MissingMemberHandling = MissingMemberHandling.Ignore
+                        });
 
-                        synonyms.Add(item.Value<string>());
-                    }
+                    metadata = token.ToObject<TMetadata>(serializer);
 
-                    metadata = new TagMetadata
+                    if (metadata == null)
                     {
-                        Description = descriptionToken.Value<string>(),
-                        Synonyms = synonyms
-                    };
+                        errorMessage = "The response could not be converted to metadata.";
+                        return false;
+                    }
 
                     return true;
                 }
@@ -105,6 +78,61 @@ namespace LLMVRPrototype
                 errorMessage = "The response could not be parsed.";
                 return false;
             }
+        }
+
+        private static bool TryValidateProperties(
+            JObject jsonObject,
+            Type metadataType,
+            out string errorMessage)
+        {
+            errorMessage = null;
+
+            HashSet<string> allowedPropertyNames = GetAllowedPropertyNames(metadataType);
+
+            foreach (JProperty property in jsonObject.Properties())
+            {
+                if (!allowedPropertyNames.Contains(property.Name))
+                {
+                    errorMessage = $"Unexpected property '{property.Name}' for metadata type '{metadataType.Name}'.";
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static HashSet<string> GetAllowedPropertyNames(
+            Type metadataType)
+        {
+            var propertyNames = new HashSet<string>(
+                StringComparer.Ordinal);
+
+            for (Type currentType = metadataType;
+                 currentType != null &&
+                 typeof(GeneratedMetadata).IsAssignableFrom(currentType);
+                 currentType = currentType.BaseType)
+            {
+                foreach (PropertyInfo property in currentType.GetProperties(
+                    BindingFlags.Instance |
+                    BindingFlags.Public |
+                    BindingFlags.DeclaredOnly))
+                {
+                    if (property.GetIndexParameters().Length == 0)
+                    {
+                        propertyNames.Add(property.Name);
+                    }
+                }
+
+                foreach (FieldInfo field in currentType.GetFields(
+                    BindingFlags.Instance |
+                    BindingFlags.Public |
+                    BindingFlags.DeclaredOnly))
+                {
+                    propertyNames.Add(field.Name);
+                }
+            }
+
+            return propertyNames;
         }
     }
 }

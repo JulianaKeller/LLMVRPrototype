@@ -35,8 +35,7 @@ namespace LLMVRPrototype.Assets
 
         [Header("Allowed Values")]
         [SerializeField]
-        private string[] allowedValues =
-            System.Array.Empty<string>();
+        private string[] allowedValues = System.Array.Empty<string>();
 
         [Header("Default Value")]
         [SerializeField] private bool hasDefaultValue;

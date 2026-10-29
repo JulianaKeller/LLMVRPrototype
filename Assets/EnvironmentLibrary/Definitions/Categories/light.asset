@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0fe6f23de9f1caa4f90745667d125375, type: 3}
+  m_Name: light
+  m_EditorClassIdentifier: Assembly-CSharp::LLMVRPrototype.Assets.AssetCategoryDefinition
+  id: light-f9df333ee2744cb6b3682f695d46b557
+  displayName: light
+  description: A collection of lighting assets, fixtures, and illumination elements designed to set the mood and brightness of a scene.
+  synonyms:
+  - illumination
+  - lighting
+  - lamps
+  - fixtures
+  - luminaires
+  - glow
+  - lights
+  parentCategory: {fileID: 0}

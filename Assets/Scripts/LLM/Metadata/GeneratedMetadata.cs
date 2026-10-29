@@ -1,22 +1,52 @@
 
+using LLMVRPrototype.Assets;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using UnityEngine;
 
 namespace LLMVRPrototype
 {
     [Serializable]
-    public sealed class MetadataGenerationInput
+    public class GeneratedMetadata
     {
-        public string EntityType;
-        public string Name;
-        public string ContextLabel;
-        public string ContextDescription;
+        [JsonProperty(MetadataJsonFields.Description)]
+        public string Description;
+        
     }
 
     [Serializable]
-    public sealed class GeneratedMetadata
+    public class GeneratedTaxonomyMetadata : GeneratedMetadata
     {
-        public string Description;
-        public List<string> Terms = new List<string>();
+        [JsonProperty(MetadataJsonFields.Synonyms)]
+        public List<string> Synonyms = new List<string>();
+    }
+
+    [Serializable]
+    public sealed class GeneratedTagMetadata : GeneratedTaxonomyMetadata
+    {
+
+    }
+
+    [Serializable]
+    public sealed class GeneratedCategoryMetadata : GeneratedTaxonomyMetadata
+    {
+
+    }
+
+    [Serializable]
+    public sealed class GeneratedOperationsMetadata : GeneratedMetadata
+    {
+        [JsonProperty(MetadataJsonFields.TargetType)]
+        private OperationTargetType targetType;
+        [JsonProperty(MetadataJsonFields.RequiresTarget)]
+        private bool requiresTarget;
+    }
+
+    [Serializable]
+    public sealed class GeneratedAssetMetadata : GeneratedMetadata
+    {
+        [JsonProperty(MetadataJsonFields.Tags)]
+        public List<string> Tags = new List<string>();
     }
 }

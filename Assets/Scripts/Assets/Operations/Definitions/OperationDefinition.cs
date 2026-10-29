@@ -42,8 +42,7 @@ namespace LLMVRPrototype.Assets
         [Header("Availability")]
         [SerializeField] private bool isEnabled = true;
         [SerializeField]
-        private OperationPromptPolicy promptPolicy =
-            OperationPromptPolicy.ContextDependent;
+        private OperationPromptPolicy promptPolicy = OperationPromptPolicy.ContextDependent;
 
         [Header("Execution")]
         [Tooltip(

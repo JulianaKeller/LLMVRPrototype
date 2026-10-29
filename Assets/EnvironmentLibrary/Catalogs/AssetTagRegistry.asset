@@ -14,3 +14,4 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::LLMVRPrototype.Assets.AssetTagRegistry
   entries:
   - {fileID: 11400000, guid: 8e5d0e9b974406f4abd4dde857e4528d, type: 2}
+  - {fileID: 11400000, guid: f3a6da31cf95f2f43b2c9da440a2d14b, type: 2}

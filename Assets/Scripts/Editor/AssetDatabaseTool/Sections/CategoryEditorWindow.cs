@@ -1,9 +1,7 @@
 using LLMVRPrototype.Assets;
-using LLMVRPrototype.LLM.Providers;
 using System;
 using System.Collections.Generic;
 using System.Text;
-using Unity.VisualScripting.YamlDotNet.Core.Tokens;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
@@ -16,16 +14,17 @@ namespace LLMVRPrototype.EditorTools
         private const string DefaultTagFolder = "Assets/EnvironmentLibrary/Definitions/Categories";
 
         private AssetCategoryDefinition category;
-        private AssetCategoryRegistry registry;
         private SerializedObject serializedCategory;
+        private AssetCategoryRegistry registry;
         private bool isNewCategory;
         private string assetFolder;
         private Action<AssetCategoryDefinition> onSaved;
 
         private AssetCategoryDefinition selectedParentCategory;
-        private Label statusLabel;
         private Label selectedParentLabel;
         private VisualElement parentTreeContainer;
+
+        protected override SerializedObject MetadataSerializedObject => serializedCategory;
 
         #region UI Methods
 
@@ -145,8 +144,7 @@ namespace LLMVRPrototype.EditorTools
 
             if (isNewCategory)
             {
-                // TODO
-                //BuildMetadataGenerationUI(container);
+                BuildMetadataGenerationUI(container);
             }
 
             rootVisualElement.RegisterCallback<KeyDownEvent>(OnKeyDown, TrickleDown.TrickleDown);
@@ -657,7 +655,19 @@ namespace LLMVRPrototype.EditorTools
 
         #endregion
 
-        
+        #region LLM API call
+
+        protected override MetadataGenerationInput GetMetadataInput()
+        {
+            return new CategoryMetadataGenerationInput(category.DisplayName,
+                category.Description,
+                selectedParentCategory?.DisplayName,
+                selectedParentCategory?.Description,
+                3, 8
+            );
+        }
+
+        #endregion
 
         private void OnDestroy()
         {
