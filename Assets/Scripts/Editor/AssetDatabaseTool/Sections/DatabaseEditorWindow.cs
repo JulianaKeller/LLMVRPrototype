@@ -1,3 +1,4 @@
+using System;
 using UnityEditor;
 using UnityEngine.UIElements;
 
@@ -12,7 +13,7 @@ namespace LLMVRPrototype.EditorTools
 
         #region LLM API Generation call
 
-        protected void BuildMetadataGenerationUI(VisualElement container)
+        protected void BuildMetadataGenerationUI(VisualElement container, bool autostartMetadataGeneration = true)
         {
             metadataController = new MetadataGenerationController();
 
@@ -20,7 +21,8 @@ namespace LLMVRPrototype.EditorTools
                 container,
                 statusLabel,
                 GetMetadataInput,
-                ApplyGeneratedMetadata);
+                ApplyGeneratedMetadata,
+                autostartMetadataGeneration);
         }
 
         protected abstract MetadataGenerationInput GetMetadataInput();
@@ -30,44 +32,57 @@ namespace LLMVRPrototype.EditorTools
             if (metadata == null)
                 return;
 
-            GeneratedTaxonomyMetadata taxonMetadata = metadata as GeneratedTaxonomyMetadata;
+            SerializedObject serializedObject = MetadataSerializedObject;
 
-            if(taxonMetadata != null)
+            if (serializedObject == null)
+                return;
+
+            serializedObject.Update();
+
+            bool changed = false;
+
+            SerializedProperty description = serializedObject.FindProperty("description");
+
+            if (description != null &&
+                !string.IsNullOrWhiteSpace(metadata.Description) &&
+                !string.Equals(description.stringValue, metadata.Description, StringComparison.Ordinal))
             {
-                SerializedObject serializedObject = MetadataSerializedObject;
+                description.stringValue = metadata.Description;
+                changed = true;
+            }
 
-                if (serializedObject == null)
-                    return;
-
-                serializedObject.Update();
-
-                SerializedProperty description = serializedObject.FindProperty("description");
-
-                SerializedProperty synonyms = serializedObject.FindProperty("synonyms");
-
-                if (description != null && string.IsNullOrWhiteSpace(description.stringValue))
-                {
-                    description.stringValue = metadata.Description;
-                }
+            if (metadata is GeneratedTaxonomyMetadata taxonomyMetadata)
+            {
+                SerializedProperty synonyms =
+                    serializedObject.FindProperty("synonyms");
 
                 if (synonyms != null &&
                     synonyms.isArray &&
                     synonyms.arraySize == 0)
                 {
-                    synonyms.arraySize = taxonMetadata.Synonyms.Count;
+                    synonyms.arraySize = taxonomyMetadata.Synonyms.Count;
 
-                    for (int i = 0; i < taxonMetadata.Synonyms.Count; i++)
+                    for (int i = 0; i < taxonomyMetadata.Synonyms.Count; i++)
                     {
-                        synonyms.GetArrayElementAtIndex(i).stringValue = taxonMetadata.Synonyms[i];
+                        synonyms.GetArrayElementAtIndex(i).stringValue =
+                            taxonomyMetadata.Synonyms[i];
                     }
-                }
 
-                serializedObject.ApplyModifiedProperties();
+                    changed = true;
+                }
             }
-            else
+
+            if (changed)
             {
-                //Nothing is applied
+                serializedObject.ApplyModifiedProperties();
+                
             }
+            OnGeneratedMetadataApplied(metadata);
+        }
+
+        protected virtual void OnGeneratedMetadataApplied(
+            GeneratedMetadata metadata)
+        {
         }
 
         #endregion

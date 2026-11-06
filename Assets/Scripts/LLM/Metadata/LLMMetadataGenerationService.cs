@@ -12,7 +12,7 @@ namespace LLMVRPrototype
             this.provider = provider ?? throw new ArgumentNullException(nameof(provider));
         }
 
-        public async Task<MetadataGenerationResult<string>> GenerateResponseTextAsync(MetadataGenerationInput input, MetadataPrompt prompt)
+        private async Task<MetadataGenerationResult<string>> GenerateResponseTextAsync(MetadataGenerationInput input, MetadataPrompt prompt)
         {
 
             string systemPrompt = prompt.BuildSystemPrompt();
@@ -44,47 +44,13 @@ namespace LLMVRPrototype
             return MetadataGenerationResult<string>.Successful(response.Text);
         }
 
-        public async Task<MetadataGenerationResult<GeneratedMetadata>> GenerateMetadataAsync(MetadataGenerationInput input)
-        {
-            if (input == null || string.IsNullOrWhiteSpace(input.Name))
-            {
-                return MetadataGenerationResult<GeneratedMetadata>.Failed("A name is required.");
-            }
-
-            MetadataPrompt prompt = new MetadataPrompt();
-
-            MetadataGenerationResult<string> responseResult = await GenerateResponseTextAsync(input, prompt);
-
-            if (!responseResult.Success)
-            {
-                return MetadataGenerationResult<GeneratedMetadata>.Failed(responseResult.ErrorMessage);
-            }
-
-            if (!MetadataJsonParser.TryParseGeneratedMetadata(
-                responseResult.Data,
-                out GeneratedTagMetadata metadata,
-                out string parseError))
-            {
-                return MetadataGenerationResult<GeneratedMetadata>.Failed("Could not parse generated metadata: " + parseError);
-            }
-
-            if (!MetadataValidators.TryValidateGeneratedMetadata(
-                metadata,
-                out string validationError))
-            {
-                return MetadataGenerationResult<GeneratedMetadata>.Failed("Generated metadata failed validation: " + validationError);
-            }
-
-            return MetadataGenerationResult<GeneratedMetadata>.Successful(metadata);
-        }
-
         #region Input specific methods
 
-        public async Task<MetadataGenerationResult<GeneratedTagMetadata>> GenerateTagMetadataAsync(TagMetadataGenerationInput input)
+        private async Task<MetadataGenerationResult<TMetadata>> GenerateMetadataAsync<TMetadata>(MetadataGenerationInput input) where TMetadata : GeneratedMetadata
         {
             if (input == null || string.IsNullOrWhiteSpace(input.Name))
             {
-                return MetadataGenerationResult<GeneratedTagMetadata>.Failed("A name is required.");
+                return MetadataGenerationResult<TMetadata>.Failed("A name is required.");
             }
 
             MetadataPrompt prompt = new MetadataPrompt();
@@ -93,61 +59,68 @@ namespace LLMVRPrototype
 
             if (!responseResult.Success)
             {
-                return MetadataGenerationResult<GeneratedTagMetadata>.Failed(responseResult.ErrorMessage);
+                return MetadataGenerationResult<TMetadata>.Failed(responseResult.ErrorMessage);
             }
 
             if (!MetadataJsonParser.TryParseGeneratedMetadata(
                 responseResult.Data,
-                out GeneratedTagMetadata metadata,
+                out TMetadata metadata,
                 out string parseError))
             {
-                return MetadataGenerationResult<GeneratedTagMetadata>.Failed("Could not parse generated metadata: " + parseError);
+                return MetadataGenerationResult<TMetadata>.Failed("Could not parse generated metadata: " + parseError);
             }
 
             if (!MetadataValidators.TryValidateGeneratedMetadata(
                 metadata,
                 out string validationError))
             {
-                return MetadataGenerationResult<GeneratedTagMetadata>.Failed("Generated metadata failed validation: " + validationError);
+                return MetadataGenerationResult<TMetadata>.Failed("Generated metadata failed validation: " + validationError);
             }
 
-            return MetadataGenerationResult<GeneratedTagMetadata>.Successful(metadata);
+            return MetadataGenerationResult<TMetadata>.Successful(metadata);
         }
 
-        public async Task<MetadataGenerationResult<GeneratedCategoryMetadata>>
-            GenerateCategoryMetadataAsync(CategoryMetadataGenerationInput input)
+        public Task<MetadataGenerationResult<GeneratedTagMetadata>> GenerateMetadataAsync(TagMetadataGenerationInput input)
         {
-            if (input == null || string.IsNullOrWhiteSpace(input.Name))
-            {
-                return MetadataGenerationResult<GeneratedCategoryMetadata>.Failed("A name is required.");
-            }
-
-            MetadataPrompt prompt = new MetadataPrompt();
-
-            MetadataGenerationResult<string> responseResult = await GenerateResponseTextAsync(input, prompt);
-
-            if (!responseResult.Success)
-            {
-                return MetadataGenerationResult<GeneratedCategoryMetadata>.Failed(responseResult.ErrorMessage);
-            }
-
-            if (!MetadataJsonParser.TryParseGeneratedMetadata(
-                responseResult.Data,
-                out GeneratedCategoryMetadata metadata,
-                out string parseError))
-            {
-                return MetadataGenerationResult<GeneratedCategoryMetadata>.Failed("Could not parse generated metadata: " + parseError);
-            }
-
-            if (!MetadataValidators.TryValidateGeneratedMetadata(
-                metadata,
-                out string validationError))
-            {
-                return MetadataGenerationResult<GeneratedCategoryMetadata>.Failed("Generated metadata failed validation: " + validationError);
-            }
-
-            return MetadataGenerationResult<GeneratedCategoryMetadata>.Successful(metadata);
+            return GenerateMetadataAsync<GeneratedTagMetadata>(input);
         }
+
+        public Task<MetadataGenerationResult<GeneratedCategoryMetadata>> GenerateMetadataAsync(CategoryMetadataGenerationInput input)
+        {
+            return GenerateMetadataAsync<GeneratedCategoryMetadata>(input);
+        }
+
+        public Task<MetadataGenerationResult<GeneratedOperationMetadata>> GenerateMetadataAsync(OperationMetadataGenerationInput input)
+        {
+            return GenerateMetadataAsync<GeneratedOperationMetadata>(input);
+        }
+        #endregion
+
+        #region Runtime type dispatch methods
+
+        public Task<MetadataGenerationResult<GeneratedMetadata>> GenerateMetadataAsync(MetadataGenerationInput input)
+        {
+            return input switch
+            {
+                TagMetadataGenerationInput tagInput => ConvertResult(GenerateMetadataAsync(tagInput)),
+                CategoryMetadataGenerationInput categoryInput => ConvertResult(GenerateMetadataAsync(categoryInput)),
+                OperationMetadataGenerationInput operationInput => ConvertResult(GenerateMetadataAsync(operationInput)),
+                _ => Task.FromResult(MetadataGenerationResult<GeneratedMetadata>.Failed(
+                    $"Unsupported metadata input type: {input?.GetType().Name ?? "null"}"))
+            };
+        }
+
+        private async Task<MetadataGenerationResult<GeneratedMetadata>> ConvertResult<TMetadata>(
+            Task<MetadataGenerationResult<TMetadata>> task) where TMetadata : GeneratedMetadata
+        {
+            MetadataGenerationResult<TMetadata> result = await task;
+
+            if (!result.Success)
+                return MetadataGenerationResult<GeneratedMetadata>.Failed(result.ErrorMessage);
+
+            return MetadataGenerationResult<GeneratedMetadata>.Successful(result.Data);
+        }
+
         #endregion
     }
 }

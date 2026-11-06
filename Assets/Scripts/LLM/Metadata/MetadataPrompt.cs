@@ -12,6 +12,7 @@ namespace LLMVRPrototype
             var prompt = new StringBuilder();
 
             prompt.AppendLine( $"Generate metadata for a single asset-library {entityType}.");
+            prompt.AppendLine(input.generalRequirements);
 
             prompt.AppendLine();
             prompt.AppendLine($"{entityType} name:");

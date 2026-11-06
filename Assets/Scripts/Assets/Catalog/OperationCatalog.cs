@@ -79,5 +79,35 @@ namespace LLMVRPrototype
             operations.Add(operation);
             RebuildIndex();
         }
+
+        public bool RegisterOperation(OperationDefinition operation)
+        {
+            if (operation == null)
+                return false;
+
+            foreach (OperationDefinition existing in operations)
+            {
+                if (existing == null || existing == operation)
+                    continue;
+
+                if (string.Equals(
+                    existing.OperationId,
+                    operation.OperationId,
+                    StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+            }
+
+            if (!operations.Contains(operation))
+                operations.Add(operation);
+
+            return true;
+        }
+
+        public bool UnregisterOperation(OperationDefinition operation)
+        {
+            return operation != null && operations.Remove(operation);
+        }
     }
 }

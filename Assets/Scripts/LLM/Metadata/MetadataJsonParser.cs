@@ -1,4 +1,5 @@
 using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
@@ -30,19 +31,25 @@ namespace LLMVRPrototype
                 using (var reader = new JsonTextReader(new StringReader(json)))
                 {
                     reader.DateParseHandling = DateParseHandling.None;
+                    reader.FloatParseHandling = FloatParseHandling.Double;
 
-                    var settings = new JsonLoadSettings
+                    var loadSettings = new JsonLoadSettings
                     {
-                        DuplicatePropertyNameHandling = DuplicatePropertyNameHandling.Error
+                        DuplicatePropertyNameHandling = DuplicatePropertyNameHandling.Error,
+                        CommentHandling = CommentHandling.Ignore,
+                        LineInfoHandling = LineInfoHandling.Load
                     };
 
-                    JToken token = JToken.Load(reader, settings);
+                    JToken token = JToken.Load(reader, loadSettings);
 
-                    // Reject content after the JSON object.
-                    if (reader.Read())
+                    // Reject any content after the JSON object.
+                    while (reader.Read())
                     {
-                        errorMessage = "Unexpected content after the JSON object.";
-                        return false;
+                        if (reader.TokenType != JsonToken.Comment)
+                        {
+                            errorMessage = "Unexpected content after the JSON object.";
+                            return false;
+                        }
                     }
 
                     if (token.Type != JTokenType.Object)
@@ -51,11 +58,18 @@ namespace LLMVRPrototype
                         return false;
                     }
 
-                    JsonSerializer serializer = JsonSerializer.Create(
-                        new JsonSerializerSettings
+                    var serializerSettings = new JsonSerializerSettings
+                    {
+                        MissingMemberHandling = MissingMemberHandling.Error,
+                        NullValueHandling = NullValueHandling.Include,
+                        DefaultValueHandling = DefaultValueHandling.Include,
+                        Converters =
                         {
-                            MissingMemberHandling = MissingMemberHandling.Ignore
-                        });
+                            new StringEnumConverter()
+                        }
+                    };
+
+                    JsonSerializer serializer = JsonSerializer.Create(serializerSettings);
 
                     metadata = token.ToObject<TMetadata>(serializer);
 
@@ -68,71 +82,30 @@ namespace LLMVRPrototype
                     return true;
                 }
             }
-            catch (JsonException)
+            catch (JsonReaderException exception)
             {
-                errorMessage = "The response contains invalid JSON or duplicate properties.";
+                errorMessage = $"Invalid JSON: {exception.Message}";
+                metadata = null;
+                return false;
+            }
+            catch (JsonSerializationException exception)
+            {
+                errorMessage = $"Invalid metadata structure: {exception.Message}";
+                metadata = null;
+                return false;
+            }
+            catch (JsonException exception)
+            {
+                errorMessage = $"The response contains invalid JSON: {exception.Message}";
+                metadata = null;
                 return false;
             }
             catch (Exception)
             {
                 errorMessage = "The response could not be parsed.";
+                metadata = null;
                 return false;
             }
-        }
-
-        private static bool TryValidateProperties(
-            JObject jsonObject,
-            Type metadataType,
-            out string errorMessage)
-        {
-            errorMessage = null;
-
-            HashSet<string> allowedPropertyNames = GetAllowedPropertyNames(metadataType);
-
-            foreach (JProperty property in jsonObject.Properties())
-            {
-                if (!allowedPropertyNames.Contains(property.Name))
-                {
-                    errorMessage = $"Unexpected property '{property.Name}' for metadata type '{metadataType.Name}'.";
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
-        private static HashSet<string> GetAllowedPropertyNames(
-            Type metadataType)
-        {
-            var propertyNames = new HashSet<string>(
-                StringComparer.Ordinal);
-
-            for (Type currentType = metadataType;
-                 currentType != null &&
-                 typeof(GeneratedMetadata).IsAssignableFrom(currentType);
-                 currentType = currentType.BaseType)
-            {
-                foreach (PropertyInfo property in currentType.GetProperties(
-                    BindingFlags.Instance |
-                    BindingFlags.Public |
-                    BindingFlags.DeclaredOnly))
-                {
-                    if (property.GetIndexParameters().Length == 0)
-                    {
-                        propertyNames.Add(property.Name);
-                    }
-                }
-
-                foreach (FieldInfo field in currentType.GetFields(
-                    BindingFlags.Instance |
-                    BindingFlags.Public |
-                    BindingFlags.DeclaredOnly))
-                {
-                    propertyNames.Add(field.Name);
-                }
-            }
-
-            return propertyNames;
         }
     }
 }

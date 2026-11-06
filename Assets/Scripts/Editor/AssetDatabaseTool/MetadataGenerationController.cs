@@ -29,7 +29,8 @@ namespace LLMVRPrototype
         VisualElement parent,
         Label statusLabel,
         Func<MetadataGenerationInput> getInput,
-        Action<GeneratedMetadata> applyMetadata)
+        Action<GeneratedMetadata> applyMetadata,
+        bool autostartMetadataGeneration = true)
         {
             this.statusLabel = statusLabel;
             this.getInput = getInput;
@@ -74,7 +75,10 @@ namespace LLMVRPrototype
                     return;
                 }
 
-                _ = GenerateAsync();
+                if (autostartMetadataGeneration)
+                {
+                    _ = GenerateAsync();
+                }
             });
 
             var retryButton = new Button(() =>
@@ -91,7 +95,7 @@ namespace LLMVRPrototype
             {
                 statusLabel.text = "Select a provider configuration to generate metadata.";
             }
-            else
+            else if(autostartMetadataGeneration)
             {
                 _ = GenerateAsync();
             }
