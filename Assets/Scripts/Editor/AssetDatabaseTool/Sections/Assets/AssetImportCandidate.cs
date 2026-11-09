@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using System.Globalization;
 
 namespace LLMVRPrototype
 {
@@ -26,7 +27,18 @@ namespace LLMVRPrototype
             AssetType = assetType;
             DefinitionType = definitionType;
 
+            PreliminaryName = FormatPreliminaryName(displayName);
             PreliminaryDescription = string.Empty;
+        }
+
+        private static string FormatPreliminaryName(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return string.Empty;
+
+            string formatted = value.Replace('_', ' ').Trim().ToLowerInvariant();
+
+            return CultureInfo.CurrentCulture.TextInfo.ToTitleCase(formatted);
         }
     }
 }

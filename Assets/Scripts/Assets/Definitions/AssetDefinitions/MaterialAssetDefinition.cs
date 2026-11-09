@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace LLMVRPrototype.Assets
@@ -7,6 +8,10 @@ namespace LLMVRPrototype.Assets
     {
         [SerializeField] private Material material;
 
+        [SerializeField] private List<Color> dominantColors = new();
+
         public Material Material => material;
+
+        public IReadOnlyList<Color> DominantColors => dominantColors;
     }
 }

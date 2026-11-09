@@ -120,12 +120,13 @@ namespace LLMVRPrototype.EditorTools
 
             SerializedObject serializedDefinition = new SerializedObject(definition);
 
-            SetStringProperty(serializedDefinition, "assetId", Guid.NewGuid().ToString("N")); 
-            SetStringProperty(serializedDefinition, "displayName", candidate.PreliminaryName ?? string.Empty);
+            SetStringProperty(serializedDefinition, "assetId", Guid.NewGuid().ToString("N"));
+
+            SetStringProperty(serializedDefinition, "displayName", candidate.PreliminaryName.Trim());
             SetStringProperty(serializedDefinition, "description", candidate.PreliminaryDescription ?? string.Empty);
 
             AssignSourceReference(serializedDefinition, candidate.DefinitionType, sourceAsset);
-            AssignThumbnail(serializedDefinition, candidate);
+            AssignThumbnail(definition, candidate);
 
             serializedDefinition.ApplyModifiedPropertiesWithoutUndo();
 
@@ -155,36 +156,44 @@ namespace LLMVRPrototype.EditorTools
                 throw new InvalidOperationException($"No source assignment rule exists for {definitionType.Name}.");
         }
 
-        private void AssignThumbnail(
-            SerializedObject serializedDefinition,
-            AssetImportCandidate candidate)
+        private void AssignThumbnail(AssetDefinition definition, AssetImportCandidate candidate)
         {
+            UnityEngine.Object sourceAsset = AssetDatabase.LoadMainAssetAtPath(candidate.AssetPath);
+            if (sourceAsset == null)
+                return;
+
             Texture2D previewTexture = candidate.PreviewTexture;
 
             if (previewTexture == null)
-            {
-                UnityEngine.Object sourceAsset = AssetDatabase.LoadMainAssetAtPath(candidate.AssetPath);
-
                 previewTexture = AssetPreview.GetAssetPreview(sourceAsset);
 
-                if (previewTexture == null)
-                    previewTexture = AssetPreview.GetMiniThumbnail(sourceAsset);
-            }
+            if (previewTexture == null)
+                previewTexture = AssetPreview.GetMiniThumbnail(sourceAsset) as Texture2D;
 
             if (previewTexture == null)
                 return;
 
-            Sprite thumbnail = Sprite.Create(
+            Sprite sprite = Sprite.Create(
                 previewTexture,
                 new Rect(0, 0, previewTexture.width, previewTexture.height),
                 new Vector2(0.5f, 0.5f)
             );
 
-            if (thumbnail == null)
-                return;
+            session.AddGeneratedSprite(sprite);
 
-            session.AddGeneratedSprite(thumbnail);
-            SetObjectProperty(serializedDefinition, "thumbnail", thumbnail);
+            SerializedObject serializedDefinition = new SerializedObject(definition);
+            SerializedProperty thumbnailProperty = serializedDefinition.FindProperty("thumbnail");
+
+            if (thumbnailProperty == null)
+            {
+                session.RemoveGeneratedSprite(sprite);
+                throw new InvalidOperationException(
+                    $"The definition type '{definition.GetType().Name}' does not contain a serialized 'thumbnail' field."
+                );
+            }
+
+            thumbnailProperty.objectReferenceValue = sprite;
+            serializedDefinition.ApplyModifiedProperties();
         }
 
         private bool IsCompatible(Type definitionType, UnityEngine.Object sourceAsset)

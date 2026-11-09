@@ -8,7 +8,9 @@ namespace LLMVRPrototype.EditorTools
     public sealed class AssetImportSession : IDisposable
     {
         private readonly List<AssetImportItem> items = new();
-        private readonly List<Sprite> generatedSprites = new();
+
+        private readonly HashSet<Sprite> generatedSprites = new();
+        private readonly HashSet<Texture2D> generatedTextures = new();
 
         private bool isDisposed;
 
@@ -19,7 +21,6 @@ namespace LLMVRPrototype.EditorTools
         public int RemainingCount => items.Count(item => !item.IsSaved && !item.IsDiscarded);
         public int SavedCount => items.Count(item => item.IsSaved);
         public int DiscardedCount => items.Count(item => item.IsDiscarded);
-
 
         public AssetImportSession(IEnumerable<AssetImportCandidate> candidates)
         {
@@ -65,6 +66,31 @@ namespace LLMVRPrototype.EditorTools
             items.Clear();
         }
 
+        public void ReplaceGeneratedThumbnail(
+                    Sprite oldSprite,
+                    Texture2D oldTexture,
+                    Sprite newSprite,
+                    Texture2D newTexture)
+        {
+            if (newSprite != null)
+                generatedSprites.Add(newSprite);
+
+            if (newTexture != null)
+                generatedTextures.Add(newTexture);
+
+            if (oldSprite != null)
+            {
+                generatedSprites.Remove(oldSprite);
+                UnityEngine.Object.DestroyImmediate(oldSprite);
+            }
+
+            if (oldTexture != null)
+            {
+                generatedTextures.Remove(oldTexture);
+                UnityEngine.Object.DestroyImmediate(oldTexture);
+            }
+        }
+
         public void AddGeneratedSprite(Sprite sprite)
         {
             ThrowIfDisposed();
@@ -73,6 +99,17 @@ namespace LLMVRPrototype.EditorTools
                 throw new ArgumentNullException(nameof(sprite));
 
             generatedSprites.Add(sprite);
+        }
+
+        public void RegisterGeneratedThumbnail(Sprite sprite, Texture2D texture)
+        {
+            ThrowIfDisposed();
+
+            if (sprite != null)
+                generatedSprites.Add(sprite);
+
+            if (texture != null)
+                generatedTextures.Add(texture);
         }
 
         public void RemoveGeneratedSprite(Sprite sprite)
@@ -94,8 +131,15 @@ namespace LLMVRPrototype.EditorTools
 
             foreach (Sprite sprite in generatedSprites)
             {
-                if (sprite != null)
-                    UnityEngine.Object.DestroyImmediate(sprite);
+                if (sprite == null)
+                    continue;
+
+                Texture2D texture = sprite.texture;
+
+                UnityEngine.Object.DestroyImmediate(sprite);
+
+                if (texture != null)
+                    UnityEngine.Object.DestroyImmediate(texture);
             }
 
             generatedSprites.Clear();
@@ -106,6 +150,10 @@ namespace LLMVRPrototype.EditorTools
             if (isDisposed)
                 return;
 
+            isDisposed = true;
+
+            ClearTemporaryObjects();
+
             foreach (AssetImportItem item in items)
                 item.DestroyTemporaryObjects();
 
@@ -115,10 +163,15 @@ namespace LLMVRPrototype.EditorTools
                     UnityEngine.Object.DestroyImmediate(sprite);
             }
 
-            generatedSprites.Clear();
-            items.Clear();
+            foreach (Texture2D texture in generatedTextures)
+            {
+                if (texture != null)
+                    UnityEngine.Object.DestroyImmediate(texture);
+            }
 
-            isDisposed = true;
+            generatedSprites.Clear();
+            generatedTextures.Clear();
+            items.Clear();
         }
 
         private void ThrowIfDisposed()

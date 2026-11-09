@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Unity.VisualScripting;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -18,6 +19,9 @@ namespace LLMVRPrototype.EditorTools
         private VisualElement assetListContainer;
         private Label summaryLabel;
         private Button continueButton;
+
+        private readonly Dictionary<AssetImportCandidate, Image> previewImages = new();
+        private IVisualElementScheduledItem previewRefreshTask;
 
         public AssetImportPreparationView(VisualElement parent, AssetImportSession session, Action onContinue)
         {
@@ -85,6 +89,9 @@ namespace LLMVRPrototype.EditorTools
             root.Add(scrollView);
 
             RefreshAssetList();
+
+            previewRefreshTask?.Pause();
+            previewRefreshTask = root.schedule.Execute(RefreshPreviews).Every(250);
         }
 
         private void BuildFooter()
@@ -132,6 +139,8 @@ namespace LLMVRPrototype.EditorTools
 
         private void RefreshAssetList()
         {
+            previewImages.Clear();
+
             assetListContainer.Clear();
 
             foreach (AssetImportItem item in session.Items)
@@ -273,14 +282,12 @@ namespace LLMVRPrototype.EditorTools
                 ? AssetPreview.GetAssetPreview(sourceAsset)
                 : null;
 
-            if (previewTexture == null && sourceAsset != null)
-                previewTexture = AssetPreview.GetMiniThumbnail(sourceAsset);
-
-            candidate.PreviewTexture = previewTexture;
+            if (previewTexture != null)
+                candidate.PreviewTexture = previewTexture;
 
             Image preview = new Image
             {
-                image = previewTexture,
+                image = previewTexture ?? (sourceAsset != null ? AssetPreview.GetMiniThumbnail(sourceAsset) : null),
                 scaleMode = ScaleMode.ScaleToFit
             };
 
@@ -288,7 +295,48 @@ namespace LLMVRPrototype.EditorTools
             preview.style.height = 72;
             preview.style.flexShrink = 0;
 
+            previewImages[candidate] = preview;
+
             return preview;
+        }
+
+        private void RefreshPreviews()
+        {
+            bool allPreviewsReady = true;
+
+            foreach (AssetImportItem item in session.Items)
+            {
+                if (item.Candidate.PreviewTexture != null)
+                    continue;
+
+                UnityEngine.Object sourceAsset = AssetDatabase.LoadMainAssetAtPath(item.Candidate.AssetPath);
+
+                if (sourceAsset == null)
+                    continue;
+
+                Texture2D previewTexture = AssetPreview.GetAssetPreview(sourceAsset);
+
+                if (previewTexture == null)
+                {
+                    allPreviewsReady = false;
+                    continue;
+                }
+
+                item.Candidate.PreviewTexture = previewTexture;
+
+                if (previewImages.TryGetValue(item.Candidate, out Image preview))
+                    preview.image = previewTexture;
+            }
+
+            if (allPreviewsReady)
+                previewRefreshTask?.Pause();
+        }
+
+        public void StopPreviewRefresh()
+        {
+            previewRefreshTask?.Pause();
+            previewRefreshTask = null;
+            previewImages.Clear();
         }
 
         private string AssetImportDefinitionDisplayName(Type type)
@@ -322,6 +370,8 @@ namespace LLMVRPrototype.EditorTools
 
             if (session.Items.Any(item => item.Candidate.DefinitionType == null))
                 return;
+
+            StopPreviewRefresh();
 
             onContinue?.Invoke();
         }

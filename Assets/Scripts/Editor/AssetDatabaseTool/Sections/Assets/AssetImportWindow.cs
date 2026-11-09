@@ -12,6 +12,9 @@ namespace LLMVRPrototype
         private AssetImportSession session;
         private VisualElement contentContainer;
 
+        private AssetImportPreparationView preparationView;
+        private AssetImportDetailsView detailsView;
+
         private const string AssetDefinitionFolder = DatabasePaths.DefinitionsFolder + "/Assets";
 
         public static void Open(List<AssetImportCandidate> candidates)
@@ -35,7 +38,7 @@ namespace LLMVRPrototype
 
         private void ShowPreparationView()
         {
-            new AssetImportPreparationView(
+            preparationView = new AssetImportPreparationView(
                 contentContainer,
                 session,
                 ShowDetailsView);
@@ -52,13 +55,48 @@ namespace LLMVRPrototype
                 return;
             }
 
+            preparationView?.StopPreviewRefresh();
+            preparationView = null;
+
             contentContainer.Clear();
-            new AssetImportDetailsView(contentContainer, session);
+
+            detailsView = new AssetImportDetailsView(contentContainer, session);
+            detailsView.CancelRequested += Close;
+            detailsView.SaveAllRequested += HandleSaveAll;
+        }
+
+        private void HandleSaveAll()
+        {
+            // Perform your existing save-all operation here.
+            Close();
+        }
+
+        private void OnDisable()
+        {
+            Cleanup();
         }
 
         private void OnDestroy()
         {
+            Cleanup();
+        }
+
+        private void Cleanup()
+        {
+            preparationView?.StopPreviewRefresh();
+            preparationView = null;
+
+            if (detailsView != null)
+            {
+                detailsView.CancelRequested -= Close;
+                detailsView.SaveAllRequested -= HandleSaveAll;
+
+                detailsView.Dispose();
+                detailsView = null;
+            }
+
             session?.Dispose();
+            session = null;
         }
     }
 }

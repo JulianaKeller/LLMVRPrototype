@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace LLMVRPrototype.Assets.Assets
@@ -7,7 +8,11 @@ namespace LLMVRPrototype.Assets.Assets
     {
         [SerializeField] private Texture texture;
 
+        [SerializeField] private List<Color> dominantColors = new();
+
         public Texture Texture => texture;
+
+        public IReadOnlyList<Color> DominantColors => dominantColors;
 
     }
 }
