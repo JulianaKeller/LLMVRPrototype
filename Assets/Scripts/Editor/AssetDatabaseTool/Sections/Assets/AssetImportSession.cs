@@ -122,6 +122,16 @@ namespace LLMVRPrototype.EditorTools
             UnityEngine.Object.DestroyImmediate(sprite);
         }
 
+        // session.Dispose() must not destroy sprites or textures that are now part of saved project assets
+        public void TransferGeneratedThumbnail(Sprite sprite, Texture2D texture)
+        {
+            if (sprite != null)
+                generatedSprites.Remove(sprite);
+
+            if (texture != null)
+                generatedTextures.Remove(texture);
+        }
+
         public void ClearTemporaryObjects()
         {
             ThrowIfDisposed();

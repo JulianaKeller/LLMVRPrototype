@@ -39,7 +39,7 @@ namespace LLMVRPrototype
             var window = CreateInstance<OperationEditorWindow>();
             window.registry = registry;
             window.InitializeCreate(displayName, onSaved);
-            window.ShowEditor("Create Operation", false);
+            window.ShowEditor("Create Operation", true);
         }
 
         public static void OpenForEdit(

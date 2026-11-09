@@ -10,6 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 83b48997f39eb5c4fb3b0c4f56366af5, type: 3}
-  m_Name: MainOperationCatalog
+  m_Name: OperationRegistry
   m_EditorClassIdentifier: Assembly-CSharp::LLMVRPrototype.OperationCatalog
-  operations: []
+  operations:
+  - {fileID: 11400000, guid: 9777c13d15a983047a16d3458ce64cda, type: 2}

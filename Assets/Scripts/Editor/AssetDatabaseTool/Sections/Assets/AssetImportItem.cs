@@ -51,11 +51,11 @@ namespace LLMVRPrototype.EditorTools
 
         public void DestroyTemporaryObjects()
         {
-            if (Definition != null)
-            {
-                UnityEngine.Object.DestroyImmediate(Definition);
-                Definition = null;
-            }
+            if (IsSaved || Definition == null)
+                return;
+
+            UnityEngine.Object.DestroyImmediate(Definition);
+            Definition = null;
         }
     }
 }
