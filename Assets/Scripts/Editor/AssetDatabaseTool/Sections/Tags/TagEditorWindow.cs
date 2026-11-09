@@ -8,7 +8,7 @@ namespace LLMVRPrototype.EditorTools
     // This popup edits the ScriptableObject through Unity's SerializedObject
     public sealed class TagEditorWindow : TaxonomyMetadataEditorWindow<AssetTagDefinition>
     {
-        private const string TagFolder = "Assets/EnvironmentLibrary/Definitions/Tags";
+        private const string TagFolder = DatabaseFolder + "/Tags";
 
         private AssetTagRegistry registry;
         private AssetTagDefinition selectedParentTag;

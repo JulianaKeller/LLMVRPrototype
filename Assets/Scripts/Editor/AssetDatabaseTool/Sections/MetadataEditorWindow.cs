@@ -8,13 +8,18 @@ using UnityEngine.UIElements;
 
 namespace LLMVRPrototype
 {
-    public abstract class MetadataEditorWindow<TDefinition> : DatabaseEditorWindow
-        where TDefinition : ScriptableObject
+    public abstract class MetadataEditorWindow<TDefinition> : EditorWindow where TDefinition : ScriptableObject
     {
         protected TDefinition definition;
         protected SerializedObject serializedDefinition;
         protected bool isNewDefinition;
         protected string assetFolder;
+
+        protected Label statusLabel;
+        private MetadataGenerationController metadataController;
+
+        protected const string DatabaseFolder = DatabasePaths.DefinitionsFolder;
+        protected const string AssetFolder = DatabasePaths.AssetsFolder;
 
         protected abstract string DefinitionTypeName { get; }
         protected abstract string IdPropertyName { get; }
@@ -37,12 +42,9 @@ namespace LLMVRPrototype
 
         protected Action<TDefinition> onSaved;
 
-        protected override SerializedObject MetadataSerializedObject =>
-            serializedDefinition;
+        protected SerializedObject MetadataSerializedObject => serializedDefinition;
 
-        protected void InitializeCreate(
-            string displayName,
-            Action<TDefinition> callback)
+        protected void InitializeCreate(string displayName, Action<TDefinition> callback)
         {
             definition = CreateInstance<TDefinition>();
             definition.name = displayName;
@@ -66,9 +68,7 @@ namespace LLMVRPrototype
             serializedDefinition.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        protected void InitializeEdit(
-            TDefinition existingDefinition,
-            Action<TDefinition> callback)
+        protected void InitializeEdit(TDefinition existingDefinition, Action<TDefinition> callback)
         {
             definition = existingDefinition;
             isNewDefinition = false;
@@ -168,10 +168,7 @@ namespace LLMVRPrototype
                 TrickleDown.TrickleDown);
         }
 
-        protected void AddProperty(
-            VisualElement parent,
-            string propertyName,
-            string label)
+        protected void AddProperty(VisualElement parent, string propertyName, string label)
         {
             SerializedProperty property =
                 serializedDefinition.FindProperty(propertyName);
@@ -189,6 +186,82 @@ namespace LLMVRPrototype
 
             parent.Add(field);
         }
+
+
+        #region LLM API Generation call
+
+        protected void BuildMetadataGenerationUI(VisualElement container, bool autostartMetadataGeneration = true)
+        {
+            metadataController = new MetadataGenerationController();
+
+            metadataController.BuildUI(
+                container,
+                statusLabel,
+                GetMetadataInput,
+                ApplyGeneratedMetadata,
+                autostartMetadataGeneration);
+        }
+
+        protected abstract MetadataGenerationInput GetMetadataInput();
+
+        protected virtual void OnGeneratedMetadataApplied(GeneratedMetadata metadata)
+        {
+        }
+
+        protected void ApplyGeneratedMetadata(GeneratedMetadata metadata)
+        {
+            if (metadata == null)
+                return;
+
+            SerializedObject serializedObject = MetadataSerializedObject;
+
+            if (serializedObject == null)
+                return;
+
+            serializedObject.Update();
+
+            bool changed = false;
+
+            SerializedProperty description = serializedObject.FindProperty("description");
+
+            if (description != null &&
+                !string.IsNullOrWhiteSpace(metadata.Description) &&
+                !string.Equals(description.stringValue, metadata.Description, StringComparison.Ordinal))
+            {
+                description.stringValue = metadata.Description;
+                changed = true;
+            }
+
+            if (metadata is GeneratedTaxonomyMetadata taxonomyMetadata)
+            {
+                SerializedProperty synonyms =
+                    serializedObject.FindProperty("synonyms");
+
+                if (synonyms != null &&
+                    synonyms.isArray &&
+                    synonyms.arraySize == 0)
+                {
+                    synonyms.arraySize = taxonomyMetadata.Synonyms.Count;
+
+                    for (int i = 0; i < taxonomyMetadata.Synonyms.Count; i++)
+                    {
+                        synonyms.GetArrayElementAtIndex(i).stringValue =
+                            taxonomyMetadata.Synonyms[i];
+                    }
+
+                    changed = true;
+                }
+            }
+
+            if (changed)
+            {
+                serializedObject.ApplyModifiedProperties();
+
+            }
+            OnGeneratedMetadataApplied(metadata);
+        }
+
+        #endregion
 
         protected virtual bool ValidateDefinition()
         {
@@ -427,12 +500,19 @@ namespace LLMVRPrototype
 
         protected virtual void OnDestroy()
         {
+            metadataController = null;
+
             if (isNewDefinition &&
                 definition != null &&
                 !EditorUtility.IsPersistent(definition))
             {
                 DestroyImmediate(definition);
             }
+        }
+
+        protected virtual void OnDisable()
+        {
+            metadataController = null;
         }
     }
 }

@@ -13,7 +13,7 @@ namespace LLMVRPrototype
 {
     public sealed class OperationEditorWindow : MetadataEditorWindow<OperationDefinition>
     {
-        private const string OperationFolder = "Assets/EnvironmentLibrary/Definitions/Operations";
+        private const string OperationFolder = DatabaseFolder + "/Operations";
 
         private OperationCatalog registry;
         private VisualElement parametersContainer;

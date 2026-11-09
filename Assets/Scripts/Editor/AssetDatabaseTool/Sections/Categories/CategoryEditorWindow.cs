@@ -7,7 +7,7 @@ namespace LLMVRPrototype.EditorTools
 {
     public sealed class CategoryEditorWindow : TaxonomyMetadataEditorWindow<AssetCategoryDefinition>
     {
-        private const string CategoryFolder = "Assets/EnvironmentLibrary/Definitions/Categories";
+        private const string CategoryFolder = DatabaseFolder + "/Categories";
 
         private AssetCategoryRegistry registry;
         private AssetCategoryDefinition selectedParentCategory;
