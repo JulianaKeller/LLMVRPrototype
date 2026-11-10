@@ -1,3 +1,4 @@
+using LLMVRPrototype.EditorTools;
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
@@ -11,6 +12,8 @@ namespace LLMVRPrototype
     {
         private Label selectedParentLabel;
         private VisualElement parentTreeContainer;
+
+        private TaxonomyHierarchyView<TDefinition> hierarchyView;
 
         protected abstract TDefinition SelectedParent { get; set; }
         protected abstract IEnumerable<TDefinition> GetAllDefinitions();
@@ -54,10 +57,26 @@ namespace LLMVRPrototype
 
             section.Add(scrollView);
 
+            hierarchyView = new TaxonomyHierarchyView<TDefinition>(
+                GetAllDefinitions(),
+                GetHierarchyItemName,
+                GetParent,
+                GetDefinitionIdForHierarchy,
+                SelectParent,
+                item => ReferenceEquals(item, SelectedParent),
+                CanSelectAsParent,
+                "Parent");
+
+            scrollView.Add(hierarchyView.Root);
+
             parentTreeContainer = scrollView;
 
             RefreshSelectedParentLabel();
-            RefreshParentTree();
+        }
+
+        private string GetDefinitionIdForHierarchy(TDefinition item)
+        {
+            return item != null ? item.name : string.Empty;
         }
 
         private void RefreshSelectedParentLabel()
@@ -65,117 +84,6 @@ namespace LLMVRPrototype
             selectedParentLabel.text = SelectedParent == null
                 ? "Current parent: None (root)"
                 : $"Current parent: {GetHierarchyItemName(SelectedParent)}";
-        }
-
-        private void RefreshParentTree()
-        {
-            if (parentTreeContainer == null)
-                return;
-
-            parentTreeContainer.Clear();
-
-            List<TDefinition> definitions =
-                new List<TDefinition>(GetAllDefinitions());
-
-            definitions.RemoveAll(item => item == null);
-
-            if (definitions.Count == 0)
-            {
-                parentTreeContainer.Add(
-                    new Label($"No registered {DefinitionTypeName.ToLowerInvariant()}s."));
-                return;
-            }
-
-            var visited = new HashSet<TDefinition>();
-
-            foreach (TDefinition item in definitions)
-            {
-                TDefinition parent = GetParent(item);
-
-                bool isRoot = parent == null || !definitions.Contains(parent);
-
-                if (!isRoot || visited.Contains(item))
-                    continue;
-
-                VisualElement node =
-                    BuildHierarchyNode(item, definitions, visited);
-
-                if (node != null)
-                    parentTreeContainer.Add(node);
-            }
-
-            // Display disconnected or malformed hierarchy branches too.
-            foreach (TDefinition item in definitions)
-            {
-                if (visited.Contains(item))
-                    continue;
-
-                var invalidGroup = new Foldout
-                {
-                    text = "Other definitions (check hierarchy)",
-                    value = true
-                };
-
-                VisualElement node =
-                    BuildHierarchyNode(item, definitions, visited);
-
-                if (node != null)
-                    invalidGroup.Add(node);
-
-                parentTreeContainer.Add(invalidGroup);
-            }
-        }
-
-        private VisualElement BuildHierarchyNode(
-            TDefinition node,
-            List<TDefinition> definitions,
-            HashSet<TDefinition> visited)
-        {
-            if (node == null || !visited.Add(node))
-                return null;
-
-            var foldout = new Foldout
-            {
-                text = GetHierarchyItemName(node),
-                value = false
-            };
-
-            bool canSelect = CanSelectAsParent(node);
-
-            var selectButton = new Button(() => SelectParent(node))
-            {
-                text = ReferenceEquals(node, SelectedParent)
-                    ? "Current parent"
-                    : "Use as parent"
-            };
-
-            selectButton.SetEnabled(canSelect);
-
-            if (!canSelect)
-            {
-                selectButton.tooltip =
-                    "A definition cannot be its own parent or be parented to one of its descendants.";
-            }
-
-            foldout.Add(selectButton);
-
-            foreach (TDefinition child in definitions)
-            {
-                if (child == null ||
-                    GetParent(child) != node ||
-                    visited.Contains(child))
-                {
-                    continue;
-                }
-
-                VisualElement childNode =
-                    BuildHierarchyNode(child, definitions, visited);
-
-                if (childNode != null)
-                    foldout.Add(childNode);
-            }
-
-            return foldout;
         }
 
         protected bool CanSelectAsParent(TDefinition candidate)
@@ -205,7 +113,7 @@ namespace LLMVRPrototype
             SelectedParent = parent;
 
             RefreshSelectedParentLabel();
-            RefreshParentTree();
+            hierarchyView?.Refresh();
         }
 
         protected override bool ValidateDefinition()

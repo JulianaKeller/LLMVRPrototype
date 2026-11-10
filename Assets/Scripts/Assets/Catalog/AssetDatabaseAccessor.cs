@@ -4,7 +4,7 @@ namespace LLMVRPrototype.Assets
 {
     public static class AssetDatabaseAccessor
     {
-        private const string ConfigResourcePath = "Database/AssetDatabaseConfig";
+        private const string ConfigResourcePath = "Database/MainAssetDatabaseConfig";
 
         private static AssetDatabaseConfig config;
 

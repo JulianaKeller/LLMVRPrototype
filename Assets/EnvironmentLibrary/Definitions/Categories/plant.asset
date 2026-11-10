@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0fe6f23de9f1caa4f90745667d125375, type: 3}
+  m_Name: plant
+  m_EditorClassIdentifier: Assembly-CSharp::LLMVRPrototype.Assets.AssetCategoryDefinition
+  id: plant-4c835f0579864fd6ac613e5f4252e2d5
+  displayName: plant
+  description: Botanical elements and greenery assets used to populate virtual environments with realistic foliage.
+  synonyms:
+  - flora
+  - foliage
+  - vegetation
+  - greenery
+  - bush
+  - shrub
+  - botanical
+  parentCategory: {fileID: 11400000, guid: 96e46ad239b99104da86d2973e6ecdb0, type: 2}

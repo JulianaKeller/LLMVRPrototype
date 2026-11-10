@@ -14,3 +14,4 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::LLMVRPrototype.OperationCatalog
   operations:
   - {fileID: 11400000, guid: 9777c13d15a983047a16d3458ce64cda, type: 2}
+  - {fileID: 11400000, guid: af91ca92559a6ac4bae678cf7612679b, type: 2}

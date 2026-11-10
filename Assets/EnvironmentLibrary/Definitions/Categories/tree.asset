@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0fe6f23de9f1caa4f90745667d125375, type: 3}
+  m_Name: tree
+  m_EditorClassIdentifier: Assembly-CSharp::LLMVRPrototype.Assets.AssetCategoryDefinition
+  id: tree-bcd87b969ea34369ae820ab9ff1c9509
+  displayName: tree
+  description: A collection of 3D botanical models and digital foliage assets featuring various tree species for environmental design.
+  synonyms:
+  - foliage
+  - flora
+  - sapling
+  - timber
+  - vegetation
+  - woodland plant
+  - arboreal asset
+  parentCategory: {fileID: 11400000, guid: 509003d28f3a4664bbdeb5a309a48cc3, type: 2}

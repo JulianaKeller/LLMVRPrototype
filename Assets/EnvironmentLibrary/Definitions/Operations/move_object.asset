@@ -1,0 +1,71 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 71bb5d9d1ba779b409d7090273353f85, type: 3}
+  m_Name: move_object
+  m_EditorClassIdentifier: Assembly-CSharp::LLMVRPrototype.Assets.OperationDefinition
+  operationId: move-object-006579b1d1294d79a89e1254edc10b48
+  displayName: move_object
+  description: Repositions an object within the asset library space by applying translation coordinates.
+  targetType: 1
+  requiresTarget: 1
+  parameters:
+  - parameterId: translation
+    displayName: Translation
+    description: The offset vector representing the movement distance and direction in [x, y, z] format.
+    parameterType: 4
+    isRequired: 1
+    floatConfiguration:
+      HasDefaultValue: 0
+      HasMinimum: 0
+      HasMaximum: 0
+      Minimum: 0
+      Maximum: 0
+      DefaultValue: 0
+      AllowedValues: []
+    vector3Configuration:
+      HasDefaultValue: 1
+      HasMinimum: 0
+      HasMaximum: 0
+      Minimum: {x: 0, y: 0, z: 0}
+      Maximum: {x: 0, y: 0, z: 0}
+      DefaultValue: {x: 0, y: 0, z: 0}
+      AllowedValues: []
+    colorConfiguration:
+      HasDefaultValue: 0
+      DefaultValue: {r: 0, g: 0, b: 0, a: 0}
+      AllowedValues: []
+    stringConfiguration:
+      HasDefaultValue: 0
+      DefaultValue: 
+      AllowedValues: []
+    booleanConfiguration:
+      HasDefaultValue: 0
+      DefaultValue: 0
+    enumConfiguration:
+      HasDefaultValue: 0
+      DefaultValue: 
+      AllowedValues: []
+    assetReferenceConfiguration:
+      HasDefaultValue: 0
+      DefaultValue: 
+      AllowedValues: []
+    integerParameterConfiguration:
+      HasDefaultValue: 0
+      HasMinimum: 0
+      HasMaximum: 0
+      Minimum: 0
+      Maximum: 0
+      DefaultValue: 0
+      AllowedValues: 
+  isEnabled: 1
+  promptPolicy: 0
+  executorId: 

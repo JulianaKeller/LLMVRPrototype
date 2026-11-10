@@ -10,10 +10,6 @@ namespace LLMVRPrototype
     public class CategoriesSection : DatabaseToolSubsection<AssetCategoryDefinition>
     {
 
-        private TextField categoryNameField;
-        private VisualElement suggestionsContainer;
-        private Label feedbackLabel;
-
         public CategoriesSection(AssetDatabaseWindowContext context, VisualElement root) : base(context, root)
         {
 
@@ -36,18 +32,10 @@ namespace LLMVRPrototype
             return context.DatabaseConfig.CategoryRegistry.Categories;
         }
 
-        protected override IEnumerable<string> GetSearchTerms(AssetCategoryDefinition category)
+        protected override IEnumerable<string> GetSynonyms(AssetCategoryDefinition category)
         {
-            foreach (string term in base.GetSearchTerms(category))
-                yield return term;
-
-            if (category.Synonyms == null)
-                yield break;
-
-            foreach (string synonym in category.Synonyms)
-                yield return synonym;
+            return category.Synonyms;
         }
-
 
 
         protected override string GetSectionTitle()

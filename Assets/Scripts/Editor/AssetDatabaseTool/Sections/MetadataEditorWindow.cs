@@ -125,8 +125,7 @@ namespace LLMVRPrototype
 
             BuildSpecificFields(container);
 
-            statusLabel = new Label(
-                "Press Enter to save. Press Escape to cancel.");
+            statusLabel = new Label("Press Enter to save. Press Escape to cancel.");
 
             statusLabel.style.marginTop = 10;
             statusLabel.style.whiteSpace = WhiteSpace.Normal;

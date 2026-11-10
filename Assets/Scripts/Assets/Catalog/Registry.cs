@@ -15,19 +15,17 @@ namespace LLMVRPrototype
 
         public void RebuildIndex()
         {
+            entries ??= new List<T>();
+            entries.RemoveAll(entry => entry == null || string.IsNullOrWhiteSpace(entry.Id));
+
             entriesById = new Dictionary<string, RegistryEntryDefinition>(StringComparer.OrdinalIgnoreCase);
 
-            foreach (RegistryEntryDefinition entry in entries)
+            foreach (T entry in entries)
             {
-                if (entry == null || string.IsNullOrWhiteSpace(entry.Id))
-                    continue;
-
                 string id = entry.Id.Trim();
 
                 if (!entriesById.TryAdd(id, entry))
-                {
                     Debug.LogWarning($"Duplicate entry ID '{id}'.", this);
-                }
             }
         }
 

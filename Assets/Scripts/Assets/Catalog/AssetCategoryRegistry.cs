@@ -12,7 +12,8 @@ namespace LLMVRPrototype
     {
 
         public IReadOnlyList<AssetCategoryDefinition> Categories =>
-        entries.Cast<AssetCategoryDefinition>().ToList();
+            entries?.OfType<AssetCategoryDefinition>().ToList()
+            ?? new List<AssetCategoryDefinition>();
 
         public bool TryGetById(string categoryId, out AssetCategoryDefinition definition)
         {
